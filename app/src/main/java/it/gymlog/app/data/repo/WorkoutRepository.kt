@@ -81,6 +81,13 @@ class WorkoutRepository(
         return result
     }
 
+    /** Pianifica un singolo esercizio aggiunto o sostituito solo per questa sessione. */
+    suspend fun planSingle(sessionId: Long, exerciseId: Long, order: Int, target: Target?, restSeconds: Int): PlannedExercise? {
+        val details = db.exerciseDao().getWithDetails(exerciseId) ?: return null
+        val done = dao.getSets(sessionId).filter { it.exerciseOrder == order && it.exerciseId == exerciseId }
+        return planned(sessionId, details, order, target, restSeconds, settings.current().defaultLoadStepKg, done)
+    }
+
     private suspend fun planned(
         sessionId: Long, exercise: ExerciseWithDetails, order: Int, target: Target?, rest: Int,
         defaultStep: Double, done: List<SetEntry>,
