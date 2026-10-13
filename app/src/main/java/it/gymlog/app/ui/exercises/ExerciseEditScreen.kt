@@ -4,6 +4,23 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.PhotoLibrary
+import it.gymlog.app.ui.design.Gym
+import it.gymlog.app.ui.design.GymCard
+import it.gymlog.app.ui.design.GymChip
+import it.gymlog.app.ui.design.GymType
+import it.gymlog.app.ui.design.PrimaryButton
+import it.gymlog.app.ui.design.RoundIconButton
+import it.gymlog.app.ui.design.SecondaryButton
+import it.gymlog.app.ui.design.SectionLabel
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -31,6 +48,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -83,84 +101,89 @@ fun ExerciseEditScreen(exerciseId: Long, onBack: () -> Unit, onHistory: (Long) -
     }
     var confirmDelete by remember { mutableStateOf<Boolean?>(null) }
 
+    val c = Gym.colors
     Column(Modifier.imePadding()) {
-        TopAppBar(
-            title = { Text(if (exerciseId == 0L) "Nuovo esercizio" else "Modifica esercizio") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro") } },
-            actions = {
-                if (exerciseId != 0L) IconButton(onClick = { onHistory(exerciseId) }) { Icon(Icons.Default.History, "Storico") }
-                IconButton(onClick = { scope.launch { confirmDelete = vm.isUsed() } }) {
-                    Icon(Icons.Default.Delete, "Elimina")
-                }
-            },
-        )
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Indietro", tint = c.text) }
+            Spacer(Modifier.weight(1f))
+            if (exerciseId != 0L) RoundIconButton(Icons.Rounded.History, "Storico", { onHistory(exerciseId) }, size = 44)
+            Spacer(Modifier.width(8.dp))
+            RoundIconButton(Icons.Rounded.Delete, "Elimina", { scope.launch { confirmDelete = vm.isUsed() } }, size = 44)
+        }
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            OutlinedTextField(
-                value = form.name, onValueChange = { v -> vm.edit { it.copy(name = v) } },
-                label = { Text("Nome") }, isError = form.nameError != null,
-                supportingText = form.nameError?.let { { Text(it) } },
-                singleLine = true, modifier = Modifier.fillMaxWidth(),
-            )
-            EnumDropdown("Muscolo primario", form.primary, Muscle.entries, { it.label }) { m -> vm.edit { it.copy(primary = m) } }
-
-            Text("Muscoli secondari (contano 0,5 serie)", style = MaterialTheme.typography.titleSmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Muscle.entries.filter { it != form.primary }.forEach { m ->
-                    val selected = m in form.secondary
-                    FilterChip(
-                        selected = selected,
-                        onClick = { vm.edit { it.copy(secondary = if (selected) it.secondary - m else it.secondary + m) } },
-                        label = { Text(m.label) },
-                    )
+            Text(if (exerciseId == 0L) "Nuovo esercizio" else "Modifica esercizio", style = GymType.screenTitle, color = c.text,
+                modifier = Modifier.padding(bottom = 8.dp))
+            SectionLabel("Dati")
+            GymCard {
+                OutlinedTextField(
+                    value = form.name, onValueChange = { v -> vm.edit { it.copy(name = v) } },
+                    label = { Text("Nome") }, isError = form.nameError != null,
+                    supportingText = form.nameError?.let { { Text(it) } },
+                    singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                EnumDropdown("Muscolo primario", form.primary, Muscle.entries, { it.label }) { m -> vm.edit { it.copy(primary = m) } }
+                Spacer(Modifier.height(8.dp))
+                EnumDropdown("Tipo", form.bias, LengthBias.entries, { it.label }) { b -> vm.edit { it.copy(bias = b) } }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = form.notes, onValueChange = { v -> vm.edit { it.copy(notes = v) } },
+                    label = { Text("Note di esecuzione") }, minLines = 2, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            SectionLabel("Muscoli secondari · contano 0,5 serie")
+            GymCard {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Muscle.entries.filter { it != form.primary }.forEach { m ->
+                        val selected = m in form.secondary
+                        GymChip(m.label, selected = selected,
+                            onClick = { vm.edit { it.copy(secondary = if (selected) it.secondary - m else it.secondary + m) } })
+                    }
                 }
             }
-            EnumDropdown("Tipo", form.bias, LengthBias.entries, { it.label }) { b -> vm.edit { it.copy(bias = b) } }
-            OutlinedTextField(
-                value = form.notes, onValueChange = { v -> vm.edit { it.copy(notes = v) } },
-                label = { Text("Note di esecuzione") }, minLines = 2, modifier = Modifier.fillMaxWidth(),
-            )
-
-            Text("Foto del macchinario", style = MaterialTheme.typography.titleSmall)
-            photos.forEachIndexed { i, p ->
-                PhotoRow(p.filePath, canUp = i > 0, canDown = i < photos.lastIndex,
-                    onUp = { vm.movePhoto(p, true) }, onDown = { vm.movePhoto(p, false) }, onDelete = { vm.removePhoto(p) })
-            }
-            pending.forEach { f -> PhotoRow(f.path, false, false, {}, {}, onDelete = { vm.removePending(f) }) }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = {
-                    val file = vm.newCameraFile()
-                    cameraPath = file.path
-                    camera.launch(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
-                }, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
-                    Icon(Icons.Default.PhotoCamera, null); Text("Scatta", Modifier.padding(start = 8.dp))
+            SectionLabel("Foto del macchinario")
+            GymCard {
+                photos.forEachIndexed { i, p ->
+                    PhotoRow(p.filePath, canUp = i > 0, canDown = i < photos.lastIndex,
+                        onUp = { vm.movePhoto(p, true) }, onDown = { vm.movePhoto(p, false) }, onDelete = { vm.removePhoto(p) })
                 }
-                OutlinedButton(onClick = {
-                    gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
-                    Icon(Icons.Default.PhotoLibrary, null); Text("Galleria", Modifier.padding(start = 8.dp))
+                pending.forEach { f -> PhotoRow(f.path, false, false, {}, {}, onDelete = { vm.removePending(f) }) }
+                if (photos.isEmpty() && pending.isEmpty()) Text("Nessuna foto: scattane una al macchinario per riconoscerlo al volo.",
+                    color = c.textSecondary, modifier = Modifier.padding(bottom = 8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SecondaryButton("Scatta", {
+                        val file = vm.newCameraFile()
+                        cameraPath = file.path
+                        camera.launch(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
+                    }, Modifier.weight(1f), Icons.Rounded.PhotoCamera)
+                    SecondaryButton("Galleria", {
+                        gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }, Modifier.weight(1f), Icons.Rounded.PhotoLibrary)
                 }
             }
-
-            OutlinedTextField(
-                value = form.hevyName, onValueChange = { v -> vm.edit { it.copy(hevyName = v) } },
-                label = { Text("Nome in Hevy (per l'importazione)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                isError = form.hevyNameError != null, supportingText = form.hevyNameError?.let { { Text(it) } },
-            )
-            OutlinedTextField(
-                value = form.loadStep, onValueChange = { v -> vm.edit { it.copy(loadStep = v) } },
-                label = { Text("Passo di carico (kg)") },
-                supportingText = { Text("Vuoto = usa quello delle impostazioni") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true, modifier = Modifier.fillMaxWidth(),
-            )
+            SectionLabel("Avanzate")
+            GymCard {
+                OutlinedTextField(
+                    value = form.hevyName, onValueChange = { v -> vm.edit { it.copy(hevyName = v) } },
+                    label = { Text("Nome in Hevy (per l'importazione)") }, singleLine = true, shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = form.hevyNameError != null, supportingText = form.hevyNameError?.let { { Text(it) } },
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = form.loadStep, onValueChange = { v -> vm.edit { it.copy(loadStep = v) } },
+                    label = { Text("Passo di carico (kg)") },
+                    supportingText = { Text("Vuoto = usa quello delle impostazioni") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(Modifier.height(16.dp))
         }
-        Button(
-            onClick = { vm.save(onBack) },
-            modifier = Modifier.fillMaxWidth().padding(16.dp).heightIn(min = 64.dp),
-        ) { Text("Salva", style = MaterialTheme.typography.titleMedium) }
+        PrimaryButton("Salva", { vm.save(onBack) }, Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding())
     }
 
     confirmDelete?.let { used ->
@@ -201,7 +224,8 @@ fun <T> EnumDropdown(label: String, value: T, options: List<T>, text: (T) -> Str
         OutlinedTextField(
             value = text(value), onValueChange = {}, readOnly = true, label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(),
+            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            shape = RoundedCornerShape(14.dp),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { o ->

@@ -113,7 +113,7 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
             composable(Routes.DAY_EDIT, listOf(navArgument("dayId") { type = NavType.LongType })) { entry ->
                 DayEditScreen(entry.arguments!!.getLong("dayId"), onBack = { nav.popBackStack() })
             }
-            composable(Routes.SETTINGS) { SettingsScreen() }
+            composable(Routes.SETTINGS) { SettingsScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.WORKOUT, listOf(navArgument("sessionId") { type = NavType.LongType })) { entry ->
                 val container = (LocalContext.current.applicationContext as GymLogApp).container
                 WorkoutScreen(entry.arguments!!.getLong("sessionId"), container.restTimer, onExit = { nav.popBackStack() })

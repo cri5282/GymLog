@@ -1,101 +1,124 @@
 package it.gymlog.app.ui.exercises
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LargeFloatingActionButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import it.gymlog.app.data.db.ExerciseWithDetails
+import it.gymlog.app.data.db.LengthBias
 import it.gymlog.app.data.db.Muscle
-import it.gymlog.app.ui.common.ScreenTitle
 import it.gymlog.app.ui.common.appViewModel
+import it.gymlog.app.ui.design.AccentPill
+import it.gymlog.app.ui.design.Gym
+import it.gymlog.app.ui.design.GymCard
+import it.gymlog.app.ui.design.GymChip
+import it.gymlog.app.ui.design.ScreenHeader
+import it.gymlog.app.ui.programs.ExerciseThumb
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Campo di ricerca arrotondato su fondo "raised". */
+@Composable
+fun SearchField(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val c = Gym.colors
+    TextField(
+        value = query, onValueChange = onChange, singleLine = true,
+        leadingIcon = { Icon(Icons.Rounded.Search, null, tint = c.textSecondary) },
+        placeholder = { Text("Cerca…", color = c.textSecondary) },
+        shape = RoundedCornerShape(16.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = c.raised, unfocusedContainerColor = c.raised,
+            focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
+        ),
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+fun MuscleFilter(selected: Muscle?, onSelect: (Muscle?) -> Unit) {
+    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        GymChip("Tutti", selected = selected == null, onClick = { onSelect(null) })
+        Muscle.entries.forEach { m -> GymChip(m.label, selected = selected == m, onClick = { onSelect(if (selected == m) null else m) }) }
+    }
+}
+
+@Composable
+fun ExerciseCard(e: ExerciseWithDetails, onClick: () -> Unit) {
+    val c = Gym.colors
+    GymCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ExerciseThumb(e)
+            Column(Modifier.weight(1f)) {
+                Text(e.exercise.name, style = MaterialTheme.typography.titleMedium, color = c.text)
+                Text(buildString {
+                    append(e.exercise.primaryMuscle.label)
+                    if (e.exercise.lengthBias != LengthBias.NONE) append(" · ${e.exercise.lengthBias.label}")
+                }, color = c.textSecondary)
+            }
+            if (e.exercise.needsReview) AccentPill("da completare")
+            else Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.textSecondary)
+        }
+    }
+}
+
 @Composable
 fun ExerciseListScreen(onOpen: (Long) -> Unit) {
     val vm = appViewModel { ExerciseListViewModel(it.exercises) }
     val list by vm.exercises.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val muscle by vm.muscle.collectAsStateWithLifecycle()
+    val c = Gym.colors
 
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            ScreenTitle("Esercizi", Modifier.padding(horizontal = 16.dp))
-            OutlinedTextField(
-                value = query,
-                onValueChange = { vm.query.value = it },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
-                placeholder = { Text("Cerca") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            )
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilterChip(selected = muscle == null, onClick = { vm.muscle.value = null }, label = { Text("Tutti") })
-                Muscle.entries.forEach { m ->
-                    FilterChip(
-                        selected = muscle == m,
-                        onClick = { vm.muscle.value = if (muscle == m) null else m },
-                        label = { Text(m.label) },
-                    )
-                }
-            }
-            LazyColumn(contentPadding = PaddingValues(bottom = 112.dp)) {
-                items(list, key = { it.exercise.id }) { e ->
-                    ListItem(
-                        headlineContent = { Text(e.exercise.name) },
-                        supportingContent = {
-                            Text(buildString {
-                                append(e.exercise.primaryMuscle.label)
-                                if (e.secondary.isNotEmpty()) append(" · " + e.secondary.joinToString { it.muscle.label })
-                            })
-                        },
-                        trailingContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (e.photos.isNotEmpty()) Icon(Icons.Default.PhotoCamera, "Ha foto")
-                                if (e.exercise.needsReview) {
-                                    AssistChip(onClick = { onOpen(e.exercise.id) }, label = { Text("da completare") },
-                                        modifier = Modifier.padding(start = 8.dp))
-                                }
-                            }
-                        },
-                        modifier = Modifier.clickable { onOpen(e.exercise.id) },
-                    )
-                    androidx.compose.material3.HorizontalDivider()
+    LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            ScreenHeader("Esercizi", "${list.size} esercizi")
+            SearchField(query, { vm.query.value = it }, Modifier.padding(horizontal = 16.dp))
+            MuscleFilter(muscle) { vm.muscle.value = it }
+        }
+        item {
+            Box(Modifier.padding(horizontal = 16.dp)) {
+                GymCard(onClick = { onOpen(0) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(c.accentContainer), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.AutoAwesome, null, tint = c.accent)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("Crea il tuo esercizio", style = MaterialTheme.typography.titleMedium, color = c.text)
+                            Text("nome e muscolo bastano", color = c.textSecondary)
+                        }
+                        Text("+", style = MaterialTheme.typography.headlineSmall, color = c.accent)
+                    }
                 }
             }
         }
-        LargeFloatingActionButton(
-            onClick = { onOpen(0) },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-        ) { Icon(Icons.Default.Add, "Nuovo esercizio") }
+        items(list, key = { it.exercise.id }) { e ->
+            Box(Modifier.padding(horizontal = 16.dp)) { ExerciseCard(e) { onOpen(e.exercise.id) } }
+        }
     }
 }

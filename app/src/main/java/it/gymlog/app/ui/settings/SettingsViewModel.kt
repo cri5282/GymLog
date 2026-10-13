@@ -7,7 +7,9 @@ import androidx.lifecycle.viewModelScope
 import it.gymlog.app.data.hevy.HevyFormatException
 import it.gymlog.app.data.hevy.HevyImporter
 import it.gymlog.app.data.hevy.ImportReport
+import it.gymlog.app.data.settings.Accent
 import it.gymlog.app.data.settings.OneRmFormula
+import it.gymlog.app.data.settings.ThemeMode
 import it.gymlog.app.data.settings.Settings
 import it.gymlog.app.data.settings.SettingsRepository
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +43,9 @@ class SettingsViewModel(
     fun setFormula(f: OneRmFormula) = viewModelScope.launch { repo.update { it.copy(oneRmFormula = f) } }
     fun setVibration(on: Boolean) = viewModelScope.launch { repo.update { it.copy(timerVibration = on) } }
     fun setSound(on: Boolean) = viewModelScope.launch { repo.update { it.copy(timerSound = on) } }
+    fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { repo.update { it.copy(themeMode = mode) } }
+    fun setAccent(accent: Accent) = viewModelScope.launch { repo.update { it.copy(accent = accent) } }
+    fun setKeepScreenOn(on: Boolean) = viewModelScope.launch { repo.update { it.copy(keepScreenOn = on) } }
 
     fun importHevy(uri: Uri, resolver: ContentResolver) {
         _import.value = ImportState.Running
