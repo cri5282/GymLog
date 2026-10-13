@@ -3,7 +3,7 @@ package it.gymlog.app.ui.history
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.gymlog.app.data.db.Exercise
-import it.gymlog.app.data.db.SessionSummary
+import it.gymlog.app.data.db.SessionTime
 import it.gymlog.app.data.db.SetEntry
 import it.gymlog.app.data.db.SetWithSession
 import it.gymlog.app.data.db.WorkoutSession
@@ -17,8 +17,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class HistoryViewModel(workouts: WorkoutRepository) : ViewModel() {
-    val sessions: StateFlow<List<SessionSummary>> =
-        workouts.observeFinishedSessions().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val sessions: StateFlow<List<SessionTime>> =
+        workouts.observeFinishedSessionTimes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 data class ExerciseGroup(val exercise: Exercise, val sets: List<SetEntry>)

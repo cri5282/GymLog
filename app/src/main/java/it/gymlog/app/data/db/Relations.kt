@@ -45,6 +45,7 @@ data class SessionTime(
     val startedAt: Long,
     val endedAt: Long?,
     val setCount: Int,
+    val source: SessionSource = SessionSource.MANUAL,
 )
 
 data class DayExerciseCount(val routineDayId: Long, val count: Int)

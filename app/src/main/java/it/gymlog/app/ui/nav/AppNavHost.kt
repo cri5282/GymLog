@@ -30,6 +30,7 @@ import it.gymlog.app.ui.history.SessionDetailScreen
 import it.gymlog.app.ui.programs.DayEditScreen
 import it.gymlog.app.ui.plan.PlanScreen
 import it.gymlog.app.ui.settings.SettingsScreen
+import it.gymlog.app.ui.stats.StatsScreen
 import it.gymlog.app.ui.workout.WorkoutScreen
 
 object Routes {
@@ -93,8 +94,10 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
                 )
             }
             composable(Routes.PLAN) { PlanScreen(onOpenRoutine = { nav.navigate(Routes.dayEdit(it)) }) }
-            composable(Routes.STATS) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
-            composable(Routes.HISTORY) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
+            composable(Routes.STATS) {
+                StatsScreen(onOpenHistory = { nav.navigate(Routes.HISTORY) }, onOpenSession = { nav.navigate(Routes.session(it)) })
+            }
+            composable(Routes.HISTORY) { HistoryScreen(onBack = { nav.popBackStack() }, onOpen = { nav.navigate(Routes.session(it)) }) }
             composable(Routes.SESSION, listOf(navArgument("sessionId") { type = NavType.LongType })) { entry ->
                 SessionDetailScreen(entry.arguments!!.getLong("sessionId"), onBack = { nav.popBackStack() },
                     onOpenExercise = { nav.navigate(Routes.exerciseHistory(it)) })

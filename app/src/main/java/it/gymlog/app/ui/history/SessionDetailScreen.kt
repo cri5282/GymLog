@@ -1,6 +1,21 @@
 package it.gymlog.app.ui.history
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.sp
+import it.gymlog.app.ui.design.Gym
+import it.gymlog.app.ui.design.GymCard
+import it.gymlog.app.ui.design.GymType
+import it.gymlog.app.ui.design.RoundIconButton
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,32 +71,39 @@ fun SessionDetailScreen(sessionId: Long, onBack: () -> Unit, onOpenExercise: (Lo
     var editing by remember { mutableStateOf<SetEntry?>(null) }
     var deletingSession by remember { mutableStateOf(false) }
 
-    Column {
-        TopAppBar(
-            title = {
-                Column {
-                    Text(state.session?.title.orEmpty())
-                    state.session?.let { Text("${formatDate(it.startedAt)} · ${formatTime(it.startedAt)}", style = MaterialTheme.typography.labelMedium) }
+    val c = Gym.colors
+    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Indietro", tint = c.text) }
+                Spacer(Modifier.weight(1f))
+                RoundIconButton(Icons.Rounded.Delete, "Elimina allenamento", { deletingSession = true }, size = 44)
+            }
+            Text(state.session?.title.orEmpty(), style = GymType.screenTitle, color = c.text)
+            state.session?.let { s ->
+                Text(buildString {
+                    append("${formatDate(s.startedAt)} · ${formatTime(s.startedAt)}")
+                    s.endedAt?.let { append(" · ${(it - s.startedAt).coerceAtLeast(0) / 60_000} min") }
+                }, color = c.textSecondary)
+            }
+        }
+        items(state.groups, key = { "g${it.exercise.id}-${it.sets.first().exerciseOrder}" }) { g ->
+            GymCard {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onOpenExercise(g.exercise.id) }) {
+                    Text(g.exercise.name, style = MaterialTheme.typography.titleMedium, color = c.text, modifier = Modifier.weight(1f))
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Storico esercizio", tint = c.textSecondary)
                 }
-            },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro") } },
-            actions = { IconButton(onClick = { deletingSession = true }) { Icon(Icons.Default.Delete, "Elimina allenamento") } },
-        )
-        LazyColumn {
-            state.groups.forEach { g ->
-                item(key = "h${g.exercise.id}-${g.sets.first().exerciseOrder}") {
-                    Text(g.exercise.name, style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.fillMaxWidth().clickable { onOpenExercise(g.exercise.id) }.padding(16.dp))
+                g.sets.forEach { set ->
+                    Row(Modifier.fillMaxWidth().clickable { editing = set }.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("${set.setIndex + 1}", color = c.textSecondary, modifier = Modifier.width(32.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(set.label(), style = GymType.number.copy(fontSize = 18.sp), color = c.text)
+                            if (set.notes.isNotBlank()) Text(set.notes, color = c.textSecondary)
+                        }
+                        Icon(Icons.Rounded.Edit, "Modifica serie", tint = c.textSecondary, modifier = Modifier.size(18.dp))
+                    }
                 }
-                items(g.sets, key = { it.id }) { set ->
-                    ListItem(
-                        headlineContent = { Text("Serie ${set.setIndex + 1}: ${set.label()}") },
-                        supportingContent = { if (set.notes.isNotBlank()) Text(set.notes) },
-                        modifier = Modifier.clickable { editing = set },
-                    )
-                }
-                item { HorizontalDivider() }
             }
         }
     }

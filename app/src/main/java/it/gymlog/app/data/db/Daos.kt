@@ -136,7 +136,7 @@ interface WorkoutDao {
     fun observeFinishedSessions(): Flow<List<SessionSummary>>
 
     @Query(
-        "SELECT s.id, s.title, s.startedAt, s.endedAt, " +
+        "SELECT s.id, s.title, s.startedAt, s.endedAt, s.source, " +
             "(SELECT COUNT(*) FROM SetEntry e WHERE e.sessionId = s.id) AS setCount " +
             "FROM WorkoutSession s WHERE s.endedAt IS NOT NULL ORDER BY s.startedAt DESC"
     )
