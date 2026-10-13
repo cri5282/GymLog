@@ -1,7 +1,5 @@
 package it.gymlog.app.ui.nav
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ListAlt
@@ -16,7 +14,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -30,6 +27,9 @@ import androidx.navigation.navArgument
 import androidx.compose.ui.platform.LocalContext
 import it.gymlog.app.GymLogApp
 import it.gymlog.app.ui.exercises.ExerciseEditScreen
+import it.gymlog.app.ui.history.ExerciseHistoryScreen
+import it.gymlog.app.ui.history.HistoryScreen
+import it.gymlog.app.ui.history.SessionDetailScreen
 import it.gymlog.app.ui.workout.WorkoutScreen
 import it.gymlog.app.ui.exercises.ExerciseListScreen
 import it.gymlog.app.ui.programs.DayEditScreen
@@ -97,10 +97,18 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
     ) { padding ->
         NavHost(nav, startDestination = Routes.TODAY, modifier = Modifier.padding(padding)) {
             composable(Routes.TODAY) { TodayScreen(onOpenWorkout = { nav.navigate(Routes.workout(it)) }) }
-            composable(Routes.HISTORY) { Placeholder("Storico") }
+            composable(Routes.HISTORY) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
+            composable(Routes.SESSION, listOf(navArgument("sessionId") { type = NavType.LongType })) { entry ->
+                SessionDetailScreen(entry.arguments!!.getLong("sessionId"), onBack = { nav.popBackStack() },
+                    onOpenExercise = { nav.navigate(Routes.exerciseHistory(it)) })
+            }
+            composable(Routes.EXERCISE_HISTORY, listOf(navArgument("exerciseId") { type = NavType.LongType })) { entry ->
+                ExerciseHistoryScreen(entry.arguments!!.getLong("exerciseId"), onBack = { nav.popBackStack() })
+            }
             composable(Routes.EXERCISES) { ExerciseListScreen(onOpen = { nav.navigate(Routes.exerciseEdit(it)) }) }
             composable(Routes.EXERCISE_EDIT, listOf(navArgument("exerciseId") { type = NavType.LongType })) { entry ->
-                ExerciseEditScreen(entry.arguments!!.getLong("exerciseId"), onBack = { nav.popBackStack() })
+                ExerciseEditScreen(entry.arguments!!.getLong("exerciseId"), onBack = { nav.popBackStack() },
+                    onHistory = { nav.navigate(Routes.exerciseHistory(it)) })
             }
             composable(Routes.PROGRAMS) { ProgramListScreen(onOpen = { nav.navigate(Routes.programEdit(it)) }) }
             composable(Routes.PROGRAM_EDIT, listOf(navArgument("programId") { type = NavType.LongType })) { entry ->
@@ -119,7 +127,3 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
     }
 }
 
-@Composable
-private fun Placeholder(name: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(name) }
-}

@@ -116,6 +116,9 @@ interface WorkoutDao {
     @Query("SELECT * FROM WorkoutSession WHERE id = :id")
     suspend fun getSession(id: Long): WorkoutSession?
 
+    @Query("SELECT * FROM WorkoutSession WHERE id = :id")
+    fun observeSession(id: Long): Flow<WorkoutSession?>
+
     @Query("SELECT * FROM WorkoutSession WHERE endedAt IS NULL ORDER BY startedAt DESC LIMIT 1")
     suspend fun getUnfinished(): WorkoutSession?
 

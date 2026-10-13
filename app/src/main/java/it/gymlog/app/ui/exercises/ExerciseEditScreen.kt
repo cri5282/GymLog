@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.AlertDialog
@@ -64,7 +65,7 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun ExerciseEditScreen(exerciseId: Long, onBack: () -> Unit) {
+fun ExerciseEditScreen(exerciseId: Long, onBack: () -> Unit, onHistory: (Long) -> Unit) {
     val vm = appViewModel(key = "exercise-$exerciseId") { ExerciseEditViewModel(exerciseId, it.exercises, it.photos) }
     val form by vm.form.collectAsStateWithLifecycle()
     val photos by vm.photos.collectAsStateWithLifecycle()
@@ -87,6 +88,7 @@ fun ExerciseEditScreen(exerciseId: Long, onBack: () -> Unit) {
             title = { Text(if (exerciseId == 0L) "Nuovo esercizio" else "Modifica esercizio") },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro") } },
             actions = {
+                if (exerciseId != 0L) IconButton(onClick = { onHistory(exerciseId) }) { Icon(Icons.Default.History, "Storico") }
                 IconButton(onClick = { scope.launch { confirmDelete = vm.isUsed() } }) {
                     Icon(Icons.Default.Delete, "Elimina")
                 }
