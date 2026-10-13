@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -131,22 +132,32 @@ private fun ActiveRow(index: Int, row: RowState, a: RowActions) {
     var showNote by remember { mutableStateOf(row.notes.isNotEmpty()) }
     Column(
         Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(RoundedCornerShape(16.dp))
-            .background(c.accentContainer.copy(alpha = 0.35f)).padding(vertical = 8.dp),
+            .background(c.accentContainer).padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // Riga 1: tipo/numero, etichetta, conferma. Riga 2: kg e reps a tutta larghezza. Riga 3: RIR e nota.
+        Row(Modifier.padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TypeBadge(index, row.type, a.setType)
-            Stepper(formatKg(row.weightKg), "kg", { a.weightStep(-1) }, { a.weightStep(+1) }, { editKg = true },
-                Modifier.weight(1f).padding(end = 4.dp))
-            Stepper("${row.reps}", "reps", { a.repsStep(-1) }, { a.repsStep(+1) }, { editReps = true },
-                Modifier.weight(1f).padding(start = 4.dp))
+            Text(if (row.type == SetType.WORKING) "Serie ${index + 1}" else row.type.label,
+                style = MaterialTheme.typography.titleMedium, color = c.text, modifier = Modifier.weight(1f))
             Box(Modifier.width(56.dp), contentAlignment = Alignment.Center) { CircleCheck(row.done, a.confirm) }
         }
-        Row(Modifier.padding(start = 40.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically,
+        Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Stepper(formatKg(row.weightKg), "kg", { a.weightStep(-1) }, { a.weightStep(+1) }, { editKg = true }, Modifier.fillMaxWidth())
+                Text("KG", style = GymType.label, color = c.textSecondary, modifier = Modifier.padding(top = 2.dp))
+            }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Stepper("${row.reps}", "reps", { a.repsStep(-1) }, { a.repsStep(+1) }, { editReps = true }, Modifier.fillMaxWidth())
+                Text("REPS", style = GymType.label, color = c.textSecondary, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+        Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("RIR", style = GymType.label, color = c.textSecondary)
+            Text("RIR", style = GymType.label, color = c.textSecondary, modifier = Modifier.padding(end = 2.dp))
             (0..5).forEach { v ->
-                GymChip("$v", selected = row.rir == v, onClick = { a.setRir(if (row.rir == v) null else v) }, modifier = Modifier.weight(1f))
+                GymChip("$v", selected = row.rir == v, onClick = { a.setRir(if (row.rir == v) null else v) },
+                    modifier = Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp))
             }
             IconButton(onClick = { showNote = !showNote }) {
                 Icon(Icons.AutoMirrored.Rounded.Notes, "Nota", tint = if (row.notes.isNotEmpty()) c.accent else c.textSecondary)

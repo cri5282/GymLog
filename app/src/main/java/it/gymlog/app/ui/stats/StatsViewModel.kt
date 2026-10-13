@@ -8,7 +8,10 @@ import it.gymlog.app.domain.activityLevels
 import it.gymlog.app.domain.localDate
 import it.gymlog.app.domain.weekStart
 import it.gymlog.app.domain.weekStreak
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -27,26 +30,30 @@ data class StatsState(
 )
 
 class StatsViewModel(
-    workouts: WorkoutRepository,
+    private val workouts: WorkoutRepository,
     private val today: () -> LocalDate = LocalDate::now,
     private val zone: ZoneId = ZoneId.systemDefault(),
 ) : ViewModel() {
-    private val weekFrom = weekStart(today()).atStartOfDay(zone).toInstant().toEpochMilli()
+    private val day = MutableStateFlow(today())
 
-    val state: StateFlow<StatsState> = combine(
-        workouts.observeFinishedSessionTimes(), workouts.countWorkingSetsSince(weekFrom),
-    ) { sessions, setsWeek ->
-        val now = today()
-        val dates = sessions.map { localDate(it.startedAt, zone) }
-        StatsState(
-            loading = false,
-            today = now,
-            total = sessions.size,
-            thisMonth = dates.count { it.year == now.year && it.month == now.month },
-            streak = weekStreak(dates.toSet(), now),
-            setsThisWeek = setsWeek,
-            levels = activityLevels(sessions, now, zone),
-            recent = sessions.take(5),
-        )
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val state: StateFlow<StatsState> = day.flatMapLatest { now ->
+        val weekFrom = weekStart(now).atStartOfDay(zone).toInstant().toEpochMilli()
+        combine(workouts.observeFinishedSessionTimes(), workouts.countWorkingSetsSince(weekFrom)) { sessions, setsWeek ->
+            val dates = sessions.map { localDate(it.startedAt, zone) }
+            StatsState(
+                loading = false,
+                today = now,
+                total = sessions.size,
+                thisMonth = dates.count { it.year == now.year && it.month == now.month },
+                streak = weekStreak(dates.toSet(), now),
+                setsThisWeek = setsWeek,
+                levels = activityLevels(sessions, now, zone),
+                recent = sessions.take(5),
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, StatsState())
+
+    /** Da chiamare quando la schermata torna visibile: ricalcola con la data di oggi. */
+    fun refreshDay() { day.value = today() }
 }

@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import it.gymlog.app.data.db.LengthBias
 import it.gymlog.app.domain.SetDraft
@@ -53,7 +54,7 @@ fun lastTimeLabel(sets: List<SetDraft>): String {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ExercisePage(
-    page: PageState, index: Int, count: Int, active: Int?, timerVisible: Boolean,
+    page: PageState, index: Int, count: Int, active: Int?, bottomPadding: Dp,
     rowActions: (Int) -> RowActions, onApplySuggestion: () -> Unit, onAddSet: () -> Unit,
     onAddPhoto: () -> Unit, onShowNotes: () -> Unit,
 ) {
@@ -62,7 +63,7 @@ fun ExercisePage(
     val c = Gym.colors
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = if (timerVisible) 140.dp else 32.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottomPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Text("ESERCIZIO ${index + 1}/$count", style = GymType.label, color = c.textSecondary) }

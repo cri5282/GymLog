@@ -52,25 +52,29 @@ class HomeViewModel(
     private val today: () -> LocalDate = LocalDate::now,
     private val zone: ZoneId = ZoneId.systemDefault(),
 ) : ViewModel() {
+    private val day = MutableStateFlow(today())
     private val shownWeek = MutableStateFlow(weekStart(today()))
     private val selected = MutableStateFlow(today())
 
     private val days = programs.observeActive()
         .flatMapLatest { p -> if (p == null) flowOf(emptyList()) else programs.observeDays(p.id) }
 
+    private data class View(val today: LocalDate, val week: LocalDate, val selected: LocalDate)
+
     val state: StateFlow<HomeState> = combine(
-        days, workouts.observeFinishedSessionTimes(), workouts.observeUnfinished(), shownWeek, selected,
-    ) { routineDays, sessions, unfinished, week, sel -> Inputs(routineDays, sessions, unfinished, week, sel) }
+        days, workouts.observeFinishedSessionTimes(), workouts.observeUnfinished(),
+        combine(day, shownWeek, selected) { d, w, sel -> View(d, w, sel) },
+    ) { routineDays, sessions, unfinished, v -> Inputs(routineDays, sessions, unfinished, v.week, v.selected, v.today) }
         .mapLatest(::build)
         .stateIn(viewModelScope, SharingStarted.Eagerly, HomeState())
 
     private data class Inputs(
         val routineDays: List<RoutineDay>, val sessions: List<SessionTime>, val unfinished: WorkoutSession?,
-        val week: LocalDate, val selected: LocalDate,
+        val week: LocalDate, val selected: LocalDate, val today: LocalDate,
     )
 
     private suspend fun build(i: Inputs): HomeState {
-        val now = today()
+        val now = i.today
         val dates = i.sessions.map { localDate(it.startedAt, zone) }.toSet()
         val planned = i.routineDays.mapNotNull { it.dayOfWeek }.toSet()
         val routine = i.routineDays.firstOrNull { it.dayOfWeek == i.selected.dayOfWeek.value }
@@ -92,6 +96,15 @@ class HomeViewModel(
             totalWorkouts = i.sessions.size,
             last = i.sessions.firstOrNull(),
         )
+    }
+
+    /** Da chiamare quando la schermata torna visibile: se è cambiato giorno, la Home passa a oggi. */
+    fun refreshDay() {
+        val t = today()
+        if (t == day.value) return
+        day.value = t
+        shownWeek.value = weekStart(t)
+        selected.value = t
     }
 
     fun previousWeek() = shownWeek.update { it.minusWeeks(1) }

@@ -34,7 +34,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -104,6 +106,10 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
     }
     val (done, total) = sessionProgress(state.pages.map { p -> p.rows.map { it.done } })
     val timerVisible = timerState.endAtMillis != null
+    // Spazio in fondo alla pagina = altezza reale della barra del timer, così non copre l'ultima serie.
+    var timerHeightPx by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val bottomPadding = if (timerVisible) with(density) { timerHeightPx.toDp() } + 16.dp else 32.dp
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -131,7 +137,7 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                     val page = state.pages.getOrNull(index) ?: return@HorizontalPager
                     val active = activeRowIndex(page.rows.map { it.done }, state.selectedRow[index], allowDone = true)
                     ExercisePage(
-                        page = page, index = index, count = state.pages.size, active = active, timerVisible = timerVisible,
+                        page = page, index = index, count = state.pages.size, active = active, bottomPadding = bottomPadding,
                         rowActions = { row ->
                             RowActions(
                                 weightStep = { vm.changeWeight(index, row, it) },
@@ -158,7 +164,7 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
             }
         }
         RestTimerBar(timerState, onAdd = { vm.addRestSeconds(15) }, onSkip = vm::skipRest,
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().onSizeChanged { timerHeightPx = it.height })
     }
 
     when (picker) {

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -78,16 +79,20 @@ fun RoundIconButton(icon: ImageVector, description: String, onClick: () -> Unit,
 }
 
 @Composable
-fun GymChip(text: String, selected: Boolean = false, onClick: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+fun GymChip(
+    text: String, selected: Boolean = false, onClick: (() -> Unit)? = null, modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+) {
     val c = Gym.colors
     Box(
         modifier.heightIn(min = 36.dp).clip(CircleShape)
             .background(if (selected) c.accent else c.raised)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(contentPadding),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (selected) c.onAccent else c.text, style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+        Text(text, color = if (selected) c.onAccent else c.text, style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
+            maxLines = 1, softWrap = false)
     }
 }
 
@@ -108,18 +113,21 @@ fun AccentPill(text: String, icon: ImageVector? = null, onClick: (() -> Unit)? =
 
 /** Valore numerico con − e + ai lati; tap sul valore per scriverlo. */
 @Composable
-fun Stepper(value: String, label: String, onMinus: () -> Unit, onPlus: () -> Unit, onTapValue: () -> Unit, modifier: Modifier = Modifier) {
+fun Stepper(
+    value: String, label: String, onMinus: () -> Unit, onPlus: () -> Unit, onTapValue: () -> Unit,
+    modifier: Modifier = Modifier, buttonSize: Int = 44,
+) {
     val c = Gym.colors
     Row(
         modifier.heightIn(min = 52.dp).clip(RoundedCornerShape(14.dp)).background(c.raised),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(48.dp).clickable(onClick = onMinus), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(buttonSize.dp).clickable(onClick = onMinus), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Remove, "Meno $label", tint = c.text)
         }
-        Text(value, style = GymType.number, color = c.text, textAlign = TextAlign.Center,
+        Text(value, style = GymType.number, color = c.text, textAlign = TextAlign.Center, maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f).clickable(onClick = onTapValue).padding(vertical = 10.dp))
-        Box(Modifier.size(48.dp).clickable(onClick = onPlus), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(buttonSize.dp).clickable(onClick = onPlus), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Add, "Più $label", tint = c.text)
         }
     }

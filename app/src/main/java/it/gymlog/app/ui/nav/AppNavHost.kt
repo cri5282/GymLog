@@ -1,5 +1,6 @@
 package it.gymlog.app.ui.nav
 
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -9,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -84,7 +86,7 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
             }
         },
     ) { padding ->
-        NavHost(nav, startDestination = Routes.HOME, modifier = Modifier.padding(padding)) {
+        NavHost(nav, startDestination = Routes.HOME, modifier = Modifier.padding(padding).consumeWindowInsets(padding)) {
             composable(Routes.HOME) {
                 HomeScreen(
                     onOpenWorkout = openWorkout,
@@ -116,7 +118,10 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
             composable(Routes.SETTINGS) { SettingsScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.WORKOUT, listOf(navArgument("sessionId") { type = NavType.LongType })) { entry ->
                 val container = (LocalContext.current.applicationContext as GymLogApp).container
-                WorkoutScreen(entry.arguments!!.getLong("sessionId"), container.restTimer, onExit = { nav.popBackStack() })
+                WorkoutScreen(entry.arguments!!.getLong("sessionId"), container.restTimer, onExit = {
+                    // Ignora un secondo tocco durante l'animazione di uscita (altrimenti toglierebbe anche la Home).
+                    if (entry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) nav.popBackStack()
+                })
             }
         }
     }

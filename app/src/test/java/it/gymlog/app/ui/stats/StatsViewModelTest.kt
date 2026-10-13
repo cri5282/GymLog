@@ -77,4 +77,15 @@ class StatsViewModelTest {
         assertEquals(5, s.recent.size)
         assertEquals("2026-10-07T18:00", s.recent.first().title)
     }
+
+    @Test fun refreshDay_newWeek_resetsSetsThisWeek() = runTest {
+        SeedData.seedIfEmpty(db)
+        session("2026-10-12T18:00", working = 3)
+        var now = today
+        val vm = StatsViewModel(WorkoutRepository(db, testSettings(tmp.root, backgroundScope)), today = { now }, zone = zone)
+        vm.await { it.setsThisWeek == 3 }
+        now = LocalDate.of(2026, 10, 20)
+        vm.refreshDay()
+        assertEquals(0, vm.await { it.today == now }.setsThisWeek)
+    }
 }

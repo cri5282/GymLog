@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.gymlog.app.data.db.SessionSource
 import it.gymlog.app.data.db.SessionTime
@@ -43,6 +44,7 @@ import it.gymlog.app.ui.home.minutes
 @Composable
 fun StatsScreen(onOpenHistory: () -> Unit, onOpenSession: (Long) -> Unit) {
     val vm = appViewModel { StatsViewModel(it.workouts) }
+    LifecycleResumeEffect(Unit) { vm.refreshDay(); onPauseOrDispose {} }
     val s by vm.state.collectAsStateWithLifecycle()
     val c = Gym.colors
     if (s.loading) return

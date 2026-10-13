@@ -103,4 +103,17 @@ class HomeViewModelTest {
         assertEquals(1, st.streak)
         assertNotNull(st.last)
     }
+
+    @Test fun refreshDay_afterMidnight_movesToNewToday() = runTest {
+        SeedData.seedIfEmpty(db)
+        var now = today
+        val vm = HomeViewModel(ProgramRepository(db), WorkoutRepository(db, testSettings(tmp.root, backgroundScope)),
+            today = { now }, zone = zone)
+        vm.await { it.selectedRoutine != null }
+        now = LocalDate.of(2026, 10, 19) // lunedì successivo
+        vm.refreshDay()
+        val s = vm.await { it.today == now }
+        assertEquals(now, s.selected)
+        assertEquals(now, s.weekStart)
+    }
 }

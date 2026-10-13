@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.gymlog.app.data.db.SessionTime
 import it.gymlog.app.domain.DayMarker
@@ -67,6 +69,7 @@ fun HomeScreen(
     onPickRoutine: () -> Unit,
 ) {
     val vm = appViewModel { HomeViewModel(it.programs, it.workouts) }
+    LifecycleResumeEffect(Unit) { vm.refreshDay(); onPauseOrDispose {} }
     val s by vm.state.collectAsStateWithLifecycle()
     val c = Gym.colors
     if (s.loading) return
@@ -92,6 +95,11 @@ fun HomeScreen(
                 }
                 SelectedDayRow(s, onStart = { id -> vm.start(id, onOpenWorkout) }, onResume = onOpenWorkout,
                     onOpenSession = onOpenSession, onPickRoutine = onPickRoutine)
+                if (s.selected == s.today && s.unfinished == null && s.selectedRoutine != null) {
+                    androidx.compose.material3.TextButton(onClick = onPickRoutine, modifier = Modifier.fillMaxWidth()) {
+                        Text("Fai un'altra scheda o un allenamento libero", color = c.accent)
+                    }
+                }
             }
 
             GymCard {
