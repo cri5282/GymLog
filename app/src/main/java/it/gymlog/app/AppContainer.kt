@@ -5,6 +5,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import it.gymlog.app.data.db.AppDatabase
 import it.gymlog.app.data.db.SeedData
 import it.gymlog.app.data.hevy.HevyImporter
+import it.gymlog.app.data.repo.ExerciseRepository
+import it.gymlog.app.data.repo.PhotoStore
 import it.gymlog.app.data.settings.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +23,8 @@ class AppContainer(context: Context) {
     val db: AppDatabase = AppDatabase.build(appContext)
     val settings = SettingsRepository(appContext.settingsStore)
     val hevyImporter = HevyImporter(db)
+    val photos = PhotoStore(appContext.filesDir)
+    val exercises = ExerciseRepository(db, photos)
 
     init {
         appScope.launch { SeedData.seedIfEmpty(db) }

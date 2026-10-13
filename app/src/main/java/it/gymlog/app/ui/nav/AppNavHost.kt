@@ -27,6 +27,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import it.gymlog.app.ui.exercises.ExerciseEditScreen
+import it.gymlog.app.ui.exercises.ExerciseListScreen
 import it.gymlog.app.ui.settings.SettingsScreen
 
 object Routes {
@@ -89,7 +91,10 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
         NavHost(nav, startDestination = Routes.TODAY, modifier = Modifier.padding(padding)) {
             composable(Routes.TODAY) { Placeholder("Oggi") }
             composable(Routes.HISTORY) { Placeholder("Storico") }
-            composable(Routes.EXERCISES) { Placeholder("Esercizi") }
+            composable(Routes.EXERCISES) { ExerciseListScreen(onOpen = { nav.navigate(Routes.exerciseEdit(it)) }) }
+            composable(Routes.EXERCISE_EDIT, listOf(navArgument("exerciseId") { type = NavType.LongType })) { entry ->
+                ExerciseEditScreen(entry.arguments!!.getLong("exerciseId"), onBack = { nav.popBackStack() })
+            }
             composable(Routes.PROGRAMS) { Placeholder("Schede") }
             composable(Routes.SETTINGS) { SettingsScreen() }
             composable(Routes.WORKOUT, listOf(navArgument("sessionId") { type = NavType.LongType })) { Placeholder("Allenamento") }
