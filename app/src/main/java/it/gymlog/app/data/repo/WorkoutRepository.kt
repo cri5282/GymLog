@@ -29,6 +29,8 @@ data class PlannedExercise(
     val lastTime: List<SetDraft>,
     /** Serie già confermate in questa sessione. */
     val done: List<SetEntry>,
+    /** Carico massimo nelle sessioni concluse (record prima di oggi). */
+    val bestKg: Double? = null,
 )
 
 data class SessionRecap(val durationMin: Long, val workingSets: Int, val volumeKg: Double)
@@ -122,6 +124,7 @@ class WorkoutRepository(
             prefill = prefill(last, targetSets),
             suggestedKg = target?.let { suggestLoad(last, it, exercise.exercise.loadStepKg ?: defaultStep) },
             lastTime = last, done = done.sortedBy { it.setIndex },
+            bestKg = dao.bestWeight(exercise.exercise.id),
         )
     }
 

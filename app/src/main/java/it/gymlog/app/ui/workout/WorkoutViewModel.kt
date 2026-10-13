@@ -4,11 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.gymlog.app.data.db.SetEntry
 import it.gymlog.app.data.db.SetType
+import it.gymlog.app.data.repo.ExerciseRepository
 import it.gymlog.app.data.repo.PlannedExercise
 import it.gymlog.app.data.repo.SessionRecap
 import it.gymlog.app.data.repo.WorkoutRepository
 import it.gymlog.app.data.settings.SettingsRepository
 import it.gymlog.app.domain.SetDraft
+import it.gymlog.app.domain.activeRowIndex
+import it.gymlog.app.domain.recordsBeaten
 import it.gymlog.app.timer.RestTimer
 import it.gymlog.app.timer.TimerState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +41,10 @@ data class WorkoutUiState(
     val startedAt: Long = 0,
     val pages: List<PageState> = emptyList(),
     val recap: SessionRecap? = null,
+    /** Esercizi con un nuovo record di carico, calcolati alla fine. */
+    val records: List<String> = emptyList(),
+    /** Riga scelta a mano per pagina (pagina → riga). */
+    val selectedRow: Map<Int, Int> = emptyMap(),
 )
 
 class WorkoutViewModel(
@@ -45,6 +52,7 @@ class WorkoutViewModel(
     private val workouts: WorkoutRepository,
     private val settings: SettingsRepository,
     private val timer: RestTimer,
+    private val exercises: ExerciseRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(WorkoutUiState())
     val state: StateFlow<WorkoutUiState> = _state.asStateFlow()
@@ -121,10 +129,33 @@ class WorkoutViewModel(
                 val id = workouts.confirmSet(sessionId, exerciseId, order, row, draft, r.notes)
                 val entry = workouts.getSet(id)
                 editRow(page, row) { it.copy(entry = entry) }
+                _state.update { it.copy(selectedRow = it.selectedRow - page) }
                 timer.start(p.planned.restSeconds)
             } finally {
                 saving.remove(page to row)
             }
+        }
+    }
+
+    /** Riga espansa della pagina. */
+    fun activeRow(page: Int): Int? {
+        val s = _state.value
+        val p = s.pages.getOrNull(page) ?: return null
+        return activeRowIndex(p.rows.map { it.done }, s.selectedRow[page], allowDone = true)
+    }
+
+    fun selectRow(page: Int, row: Int) = _state.update { it.copy(selectedRow = it.selectedRow + (page to row)) }
+
+    /** Aggiunge una foto all'esercizio della pagina (scattata in palestra) e la mostra subito. */
+    fun addPhoto(page: Int, file: java.io.File) = viewModelScope.launch {
+        val p = _state.value.pages.getOrNull(page) ?: return@launch
+        val id = p.planned.exercise.exercise.id
+        exercises.addPhoto(id, file)
+        val details = exercises.get(id) ?: return@launch
+        _state.update { s ->
+            val pages = s.pages.toMutableList()
+            pages.getOrNull(page)?.let { pages[page] = it.copy(planned = it.planned.copy(exercise = details)) }
+            s.copy(pages = pages)
         }
     }
 
@@ -167,6 +198,15 @@ class WorkoutViewModel(
     fun finish() = viewModelScope.launch {
         timer.skip()
         val recap = workouts.finish(sessionId)
-        _state.update { it.copy(recap = recap) }
+        val pages = _state.value.pages
+        val sessionBest = linkedMapOf<String, Double>()
+        val previous = mutableMapOf<String, Double?>()
+        for (p in pages) {
+            val name = p.planned.exercise.exercise.name
+            val best = p.rows.filter { it.done && it.type != SetType.WARMUP }.maxOfOrNull { it.weightKg } ?: continue
+            sessionBest[name] = maxOf(best, sessionBest[name] ?: 0.0)
+            previous[name] = p.planned.bestKg
+        }
+        _state.update { it.copy(recap = recap, records = recordsBeaten(sessionBest, previous)) }
     }
 }

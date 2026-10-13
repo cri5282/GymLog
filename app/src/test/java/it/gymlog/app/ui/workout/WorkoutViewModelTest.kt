@@ -3,6 +3,8 @@ package it.gymlog.app.ui.workout
 import it.gymlog.app.data.db.AppDatabase
 import it.gymlog.app.data.db.SeedData
 import it.gymlog.app.data.db.SetType
+import it.gymlog.app.data.repo.ExerciseRepository
+import it.gymlog.app.data.repo.PhotoStore
 import it.gymlog.app.data.repo.ProgramRepository
 import it.gymlog.app.data.repo.WorkoutRepository
 import it.gymlog.app.data.settings.SettingsRepository
@@ -64,7 +66,8 @@ class WorkoutViewModelTest {
         return Env(settings, workouts, workouts.startOrResume(day))
     }
 
-    private fun vm(e: Env) = WorkoutViewModel(e.session, e.workouts, e.settings, timer)
+    private fun exercises() = ExerciseRepository(db, PhotoStore(tmp.root))
+    private fun vm(e: Env) = WorkoutViewModel(e.session, e.workouts, e.settings, timer, exercises())
 
     private suspend fun WorkoutViewModel.await(cond: (WorkoutUiState) -> Boolean) =
         withContext(Dispatchers.Default.limitedParallelism(1)) {
@@ -92,7 +95,7 @@ class WorkoutViewModelTest {
         repeat(3) { e.workouts.confirmSet(e.session, first, 0, it, SetDraft(80.0, 8, 2, SetType.WORKING), "") }
         e.workouts.finish(e.session)
         val next = e.workouts.startOrResume(ProgramRepository(db).todayDay(LocalDate.of(2026, 10, 12))!!.id)
-        val vm = WorkoutViewModel(next, e.workouts, e.settings, timer)
+        val vm = WorkoutViewModel(next, e.workouts, e.settings, timer, exercises())
         vm.await { it.pages[0].rows.size == 3 }
         vm.confirm(0, 0)
         vm.await { it.pages[0].rows[0].done }
@@ -194,5 +197,45 @@ class WorkoutViewModelTest {
         assertEquals(3, rows.size)
         assertEquals(listOf(false, false, true), rows.map { it.done })
         assertEquals(70.0, rows[2].weightKg, 1e-9)
+    }
+
+    private suspend fun TestScope.finishedPushA(e: Env, kgs: List<Double>) {
+        val ex = db.exerciseDao().findByName("Incline Chest Press (Machine)")!!.id
+        kgs.forEachIndexed { i, kg -> e.workouts.confirmSet(e.session, ex, 0, i, SetDraft(kg, 8, 2, SetType.WORKING), "") }
+        e.workouts.finish(e.session)
+    }
+
+    private suspend fun nextPushA(e: Env) =
+        e.workouts.startOrResume(ProgramRepository(db).todayDay(LocalDate.of(2026, 10, 12))!!.id)
+
+    @Test fun bestKg_fromPreviousSessions() = runTest {
+        val e = env()
+        finishedPushA(e, listOf(80.0, 85.0))
+        val vm = WorkoutViewModel(nextPushA(e), e.workouts, e.settings, timer, exercises())
+        assertEquals(85.0, vm.await { true }.pages[0].planned.bestKg!!, 1e-9)
+    }
+
+    @Test fun confirm_movesActiveRowToNext() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        assertEquals(0, vm.activeRow(0))
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        assertEquals(1, vm.activeRow(0))
+        vm.selectRow(0, 2)
+        assertEquals(2, vm.activeRow(0))
+    }
+
+    @Test fun finish_reportsRecords() = runTest {
+        val e = env()
+        finishedPushA(e, listOf(80.0))
+        val vm = WorkoutViewModel(nextPushA(e), e.workouts, e.settings, timer, exercises())
+        vm.await { true }
+        vm.setWeight(0, 0, 85.0)
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        vm.finish()
+        assertEquals(listOf("Incline Chest Press (Machine)"), vm.await { it.recap != null }.records)
     }
 }
