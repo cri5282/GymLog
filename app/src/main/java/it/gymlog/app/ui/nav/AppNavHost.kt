@@ -29,7 +29,11 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import it.gymlog.app.ui.exercises.ExerciseEditScreen
 import it.gymlog.app.ui.exercises.ExerciseListScreen
+import it.gymlog.app.ui.programs.DayEditScreen
+import it.gymlog.app.ui.programs.ProgramEditScreen
+import it.gymlog.app.ui.programs.ProgramListScreen
 import it.gymlog.app.ui.settings.SettingsScreen
+import it.gymlog.app.ui.today.TodayScreen
 
 object Routes {
     const val TODAY = "today"
@@ -89,13 +93,20 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
         },
     ) { padding ->
         NavHost(nav, startDestination = Routes.TODAY, modifier = Modifier.padding(padding)) {
-            composable(Routes.TODAY) { Placeholder("Oggi") }
+            composable(Routes.TODAY) { TodayScreen(onOpenWorkout = { nav.navigate(Routes.workout(it)) }) }
             composable(Routes.HISTORY) { Placeholder("Storico") }
             composable(Routes.EXERCISES) { ExerciseListScreen(onOpen = { nav.navigate(Routes.exerciseEdit(it)) }) }
             composable(Routes.EXERCISE_EDIT, listOf(navArgument("exerciseId") { type = NavType.LongType })) { entry ->
                 ExerciseEditScreen(entry.arguments!!.getLong("exerciseId"), onBack = { nav.popBackStack() })
             }
-            composable(Routes.PROGRAMS) { Placeholder("Schede") }
+            composable(Routes.PROGRAMS) { ProgramListScreen(onOpen = { nav.navigate(Routes.programEdit(it)) }) }
+            composable(Routes.PROGRAM_EDIT, listOf(navArgument("programId") { type = NavType.LongType })) { entry ->
+                ProgramEditScreen(entry.arguments!!.getLong("programId"), onBack = { nav.popBackStack() },
+                    onOpenDay = { nav.navigate(Routes.dayEdit(it)) })
+            }
+            composable(Routes.DAY_EDIT, listOf(navArgument("dayId") { type = NavType.LongType })) { entry ->
+                DayEditScreen(entry.arguments!!.getLong("dayId"), onBack = { nav.popBackStack() })
+            }
             composable(Routes.SETTINGS) { SettingsScreen() }
             composable(Routes.WORKOUT, listOf(navArgument("sessionId") { type = NavType.LongType })) { Placeholder("Allenamento") }
         }

@@ -1,0 +1,123 @@
+package it.gymlog.app.data.repo
+
+import androidx.room.withTransaction
+import it.gymlog.app.data.db.AppDatabase
+import it.gymlog.app.data.db.ExerciseWithDetails
+import it.gymlog.app.data.db.SetEntry
+import it.gymlog.app.data.db.SetType
+import it.gymlog.app.data.db.WorkoutSession
+import it.gymlog.app.data.settings.SettingsRepository
+import it.gymlog.app.domain.SetDraft
+import it.gymlog.app.domain.Target
+import it.gymlog.app.domain.prefill
+import it.gymlog.app.domain.suggestLoad
+import kotlinx.coroutines.flow.Flow
+
+data class PlannedExercise(
+    val exercise: ExerciseWithDetails,
+    /** Posizione nella sessione (= exerciseOrder delle serie). */
+    val order: Int,
+    /** null per gli esercizi aggiunti solo oggi o negli allenamenti liberi. */
+    val target: Target?,
+    val restSeconds: Int,
+    val prefill: List<SetDraft>,
+    val suggestedKg: Double?,
+    val lastTime: List<SetDraft>,
+    /** Serie già confermate in questa sessione. */
+    val done: List<SetEntry>,
+)
+
+data class SessionRecap(val durationMin: Long, val workingSets: Int, val volumeKg: Double)
+
+const val DEFAULT_REST_SECONDS = 120
+const val FREE_WORKOUT_TITLE = "Allenamento libero"
+
+fun SetEntry.toDraft() = SetDraft(weightKg, reps, rir, setType)
+
+class WorkoutRepository(
+    private val db: AppDatabase,
+    private val settings: SettingsRepository,
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
+    private val dao = db.workoutDao()
+
+    fun observeUnfinished(): Flow<WorkoutSession?> = dao.observeUnfinished()
+
+    /** Riprende l'allenamento in corso se esiste, altrimenti ne inizia uno nuovo. */
+    suspend fun startOrResume(dayId: Long?): Long = db.withTransaction {
+        dao.getUnfinished()?.id ?: run {
+            val title = dayId?.let { db.programDao().getDay(it)?.name } ?: FREE_WORKOUT_TITLE
+            dao.insertSession(WorkoutSession(routineDayId = dayId, title = title, startedAt = clock()))
+        }
+    }
+
+    suspend fun getSession(id: Long): WorkoutSession? = dao.getSession(id)
+
+    /** Esercizi della scheda + esercizi con serie in questa sessione non previsti + [extraExerciseIds]. */
+    suspend fun plan(sessionId: Long, extraExerciseIds: List<Long> = emptyList()): List<PlannedExercise> {
+        val session = dao.getSession(sessionId) ?: return emptyList()
+        val step = settings.current().defaultLoadStepKg
+        val done = dao.getSets(sessionId)
+        val dayExercises = session.routineDayId?.let { db.programDao().getDayExercises(it) }.orEmpty()
+
+        val result = mutableListOf<PlannedExercise>()
+        dayExercises.forEachIndexed { i, re ->
+            val r = re.routineExercise
+            val target = Target(r.targetSets, r.repMin, r.repMax, r.targetRirMin, r.targetRirMax)
+            result += planned(sessionId, re.exercise, i, target, r.restSeconds, step,
+                done.filter { it.exerciseOrder == i && it.exerciseId == r.exerciseId })
+        }
+        val matched = result.flatMap { it.done }.map { it.id }.toSet()
+        val extraGroups = done.filter { it.id !in matched }.groupBy { it.exerciseOrder to it.exerciseId }
+        for ((key, sets) in extraGroups.entries.sortedBy { it.key.first }) {
+            val details = db.exerciseDao().getWithDetails(key.second) ?: continue
+            result += planned(sessionId, details, key.first, null, DEFAULT_REST_SECONDS, step, sets)
+        }
+        var nextOrder = (result.maxOfOrNull { it.order } ?: -1) + 1
+        for (id in extraExerciseIds) {
+            val details = db.exerciseDao().getWithDetails(id) ?: continue
+            result += planned(sessionId, details, nextOrder++, null, DEFAULT_REST_SECONDS, step, emptyList())
+        }
+        return result
+    }
+
+    private suspend fun planned(
+        sessionId: Long, exercise: ExerciseWithDetails, order: Int, target: Target?, rest: Int,
+        defaultStep: Double, done: List<SetEntry>,
+    ): PlannedExercise {
+        val last = dao.lastFinishedSetsFor(exercise.exercise.id, sessionId).map { it.toDraft() }
+        val targetSets = target?.sets ?: last.count { it.type == SetType.WORKING }.takeIf { it > 0 } ?: 3
+        return PlannedExercise(
+            exercise = exercise, order = order, target = target, restSeconds = rest,
+            prefill = prefill(last, targetSets),
+            suggestedKg = target?.let { suggestLoad(last, it, exercise.exercise.loadStepKg ?: defaultStep) },
+            lastTime = last, done = done.sortedBy { it.setIndex },
+        )
+    }
+
+    suspend fun confirmSet(
+        sessionId: Long, exerciseId: Long, exerciseOrder: Int, setIndex: Int, draft: SetDraft, notes: String,
+    ): Long = dao.insertSet(
+        SetEntry(
+            sessionId = sessionId, exerciseId = exerciseId, exerciseOrder = exerciseOrder, setIndex = setIndex,
+            setType = draft.type, weightKg = draft.weightKg, reps = draft.reps, rir = draft.rir,
+            notes = notes.trim(), completedAt = clock(),
+        )
+    )
+
+    suspend fun updateSet(set: SetEntry) = dao.updateSet(set)
+    suspend fun deleteSet(set: SetEntry) = dao.deleteSet(set)
+    suspend fun deleteSession(session: WorkoutSession) = dao.deleteSession(session)
+
+    suspend fun finish(sessionId: Long): SessionRecap {
+        val session = dao.getSession(sessionId) ?: return SessionRecap(0, 0, 0.0)
+        val end = clock()
+        dao.updateSession(session.copy(endedAt = end))
+        val counted = dao.getSets(sessionId).filter { it.setType != SetType.WARMUP }
+        return SessionRecap(
+            durationMin = (end - session.startedAt).coerceAtLeast(0) / 60_000,
+            workingSets = counted.size,
+            volumeKg = counted.sumOf { it.weightKg * it.reps },
+        )
+    }
+}
