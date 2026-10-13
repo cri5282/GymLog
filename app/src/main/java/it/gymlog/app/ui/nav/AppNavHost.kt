@@ -27,7 +27,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.compose.ui.platform.LocalContext
+import it.gymlog.app.GymLogApp
 import it.gymlog.app.ui.exercises.ExerciseEditScreen
+import it.gymlog.app.ui.workout.WorkoutScreen
 import it.gymlog.app.ui.exercises.ExerciseListScreen
 import it.gymlog.app.ui.programs.DayEditScreen
 import it.gymlog.app.ui.programs.ProgramEditScreen
@@ -108,7 +111,10 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
                 DayEditScreen(entry.arguments!!.getLong("dayId"), onBack = { nav.popBackStack() })
             }
             composable(Routes.SETTINGS) { SettingsScreen() }
-            composable(Routes.WORKOUT, listOf(navArgument("sessionId") { type = NavType.LongType })) { Placeholder("Allenamento") }
+            composable(Routes.WORKOUT, listOf(navArgument("sessionId") { type = NavType.LongType })) { entry ->
+                val container = (LocalContext.current.applicationContext as GymLogApp).container
+                WorkoutScreen(entry.arguments!!.getLong("sessionId"), container.restTimer, onExit = { nav.popBackStack() })
+            }
         }
     }
 }

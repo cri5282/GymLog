@@ -10,6 +10,9 @@ import it.gymlog.app.data.repo.PhotoStore
 import it.gymlog.app.data.repo.ProgramRepository
 import it.gymlog.app.data.repo.WorkoutRepository
 import it.gymlog.app.data.settings.SettingsRepository
+import it.gymlog.app.timer.RestTimer
+import it.gymlog.app.timer.RestTimerImpl
+import it.gymlog.app.timer.RestTimerService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +32,7 @@ class AppContainer(context: Context) {
     val exercises = ExerciseRepository(db, photos)
     val programs = ProgramRepository(db)
     val workouts = WorkoutRepository(db, settings)
+    val restTimer: RestTimer = RestTimerImpl(onActive = { RestTimerService.start(appContext) })
 
     init {
         appScope.launch { SeedData.seedIfEmpty(db) }

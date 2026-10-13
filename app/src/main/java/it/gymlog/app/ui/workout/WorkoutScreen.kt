@@ -1,5 +1,10 @@
 package it.gymlog.app.ui.workout
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +32,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -35,7 +42,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.gymlog.app.timer.RestTimer
@@ -59,6 +68,16 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
     var confirmFinish by remember { mutableStateOf(false) }
     val pager = rememberPagerState { state.pages.size }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var notificationsDenied by rememberSaveable { mutableStateOf(false) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationsDenied = !granted
+    }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
 
     if (state.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -87,6 +106,12 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                 }
             },
         )
+        if (notificationsDenied) {
+            Surface(color = MaterialTheme.colorScheme.errorContainer, onClick = { notificationsDenied = false }) {
+                Text("Senza notifiche il timer suona solo con l'app aperta. Tocca per chiudere.",
+                    Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
         Box(Modifier.weight(1f)) {
             if (state.pages.isEmpty()) {
                 Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center,
