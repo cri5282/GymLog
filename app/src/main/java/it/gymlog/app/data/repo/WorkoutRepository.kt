@@ -46,6 +46,7 @@ class WorkoutRepository(
     private val dao = db.workoutDao()
 
     fun observeUnfinished(): Flow<WorkoutSession?> = dao.observeUnfinished()
+    suspend fun getUnfinished(): WorkoutSession? = dao.getUnfinished()
 
     /** Riprende l'allenamento in corso se esiste, altrimenti ne inizia uno nuovo. */
     suspend fun startOrResume(dayId: Long?): Long = db.withTransaction {

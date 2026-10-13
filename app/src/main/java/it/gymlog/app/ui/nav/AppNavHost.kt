@@ -1,21 +1,15 @@
 package it.gymlog.app.ui.nav
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ListAlt
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Today
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -24,32 +18,34 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.compose.ui.platform.LocalContext
 import it.gymlog.app.GymLogApp
+import it.gymlog.app.ui.common.appViewModel
+import it.gymlog.app.ui.design.Gym
 import it.gymlog.app.ui.exercises.ExerciseEditScreen
+import it.gymlog.app.ui.exercises.ExerciseListScreen
 import it.gymlog.app.ui.history.ExerciseHistoryScreen
 import it.gymlog.app.ui.history.HistoryScreen
 import it.gymlog.app.ui.history.SessionDetailScreen
-import it.gymlog.app.ui.workout.WorkoutScreen
-import it.gymlog.app.ui.exercises.ExerciseListScreen
 import it.gymlog.app.ui.programs.DayEditScreen
 import it.gymlog.app.ui.programs.ProgramEditScreen
 import it.gymlog.app.ui.programs.ProgramListScreen
 import it.gymlog.app.ui.settings.SettingsScreen
 import it.gymlog.app.ui.today.TodayScreen
+import it.gymlog.app.ui.workout.WorkoutScreen
 
 object Routes {
-    const val TODAY = "today"
+    const val HOME = "home"
+    const val PLAN = "plan"
+    const val STATS = "stats"
+    const val EXERCISES = "exercises"
+    const val SETTINGS = "settings"
     const val WORKOUT = "workout/{sessionId}"
     const val HISTORY = "history"
     const val SESSION = "history/{sessionId}"
     const val EXERCISE_HISTORY = "exerciseHistory/{exerciseId}"
-    const val EXERCISES = "exercises"
     const val EXERCISE_EDIT = "exercise/{exerciseId}"
-    const val PROGRAMS = "programs"
     const val PROGRAM_EDIT = "program/{programId}"
     const val DAY_EDIT = "day/{dayId}"
-    const val SETTINGS = "settings"
 
     fun workout(sessionId: Long) = "workout/$sessionId"
     fun session(sessionId: Long) = "history/$sessionId"
@@ -57,46 +53,43 @@ object Routes {
     fun exerciseEdit(exerciseId: Long) = "exercise/$exerciseId"
     fun programEdit(programId: Long) = "program/$programId"
     fun dayEdit(dayId: Long) = "day/$dayId"
+
+    val withBottomBar = setOf(HOME, PLAN, STATS, EXERCISES)
 }
-
-private data class TopLevel(val route: String, val label: String, val icon: ImageVector)
-
-private val topLevel = listOf(
-    TopLevel(Routes.TODAY, "Oggi", Icons.Default.Today),
-    TopLevel(Routes.HISTORY, "Storico", Icons.Default.History),
-    TopLevel(Routes.EXERCISES, "Esercizi", Icons.Default.FitnessCenter),
-    TopLevel(Routes.PROGRAMS, "Schede", Icons.AutoMirrored.Filled.ListAlt),
-    TopLevel(Routes.SETTINGS, "Impostazioni", Icons.Default.Settings),
-)
 
 @Composable
 fun AppNavHost(nav: NavHostController = rememberNavController()) {
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
+    val start = appViewModel(key = "start") { StartViewModel(it.programs, it.workouts) }
+    val resuming by start.resuming.collectAsStateWithLifecycle()
+    val days by start.days.collectAsStateWithLifecycle()
+    var picking by remember { mutableStateOf(false) }
+    val openWorkout: (Long) -> Unit = { nav.navigate(Routes.workout(it)) { launchSingleTop = true } }
+
     Scaffold(
+        containerColor = Gym.colors.background,
         bottomBar = {
-            if (current?.startsWith("workout/") != true) {
-                NavigationBar {
-                    topLevel.forEach { item ->
-                        NavigationBarItem(
-                            selected = current == item.route,
-                            onClick = {
-                                nav.navigate(item.route) {
-                                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(item.icon, contentDescription = null) },
-                            label = { Text(item.label) },
-                        )
-                    }
-                }
+            if (current in Routes.withBottomBar) {
+                BottomBar(
+                    current = current,
+                    resuming = resuming,
+                    onNavigate = { route ->
+                        nav.navigate(route) {
+                            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onStart = { start.onStart(open = openWorkout, pick = { picking = true }) },
+                )
             }
         },
     ) { padding ->
-        NavHost(nav, startDestination = Routes.TODAY, modifier = Modifier.padding(padding)) {
-            composable(Routes.TODAY) { TodayScreen(onOpenWorkout = { nav.navigate(Routes.workout(it)) { launchSingleTop = true } }) }
+        NavHost(nav, startDestination = Routes.HOME, modifier = Modifier.padding(padding)) {
+            composable(Routes.HOME) { TodayScreen(onOpenWorkout = openWorkout) }
+            composable(Routes.PLAN) { ProgramListScreen(onOpen = { nav.navigate(Routes.programEdit(it)) }) }
+            composable(Routes.STATS) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
             composable(Routes.HISTORY) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
             composable(Routes.SESSION, listOf(navArgument("sessionId") { type = NavType.LongType })) { entry ->
                 SessionDetailScreen(entry.arguments!!.getLong("sessionId"), onBack = { nav.popBackStack() },
@@ -110,7 +103,6 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
                 ExerciseEditScreen(entry.arguments!!.getLong("exerciseId"), onBack = { nav.popBackStack() },
                     onHistory = { nav.navigate(Routes.exerciseHistory(it)) })
             }
-            composable(Routes.PROGRAMS) { ProgramListScreen(onOpen = { nav.navigate(Routes.programEdit(it)) }) }
             composable(Routes.PROGRAM_EDIT, listOf(navArgument("programId") { type = NavType.LongType })) { entry ->
                 ProgramEditScreen(entry.arguments!!.getLong("programId"), onBack = { nav.popBackStack() },
                     onOpenDay = { nav.navigate(Routes.dayEdit(it)) })
@@ -125,5 +117,6 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
             }
         }
     }
+    if (picking) RoutinePickerSheet(days, onPick = { id -> picking = false; start.startDay(id, openWorkout) },
+        onDismiss = { picking = false })
 }
-
