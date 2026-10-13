@@ -3,6 +3,6 @@
 set -e
 cd "$(dirname "$0")/.."
 source scripts/env.sh
-./gradlew test -q "$@"
+./gradlew testDebugUnitTest -q "$@"
 n=$(cat app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null | grep -o '<testcase ' | wc -l)
 echo "test JVM: tutti superati ($n test)"
