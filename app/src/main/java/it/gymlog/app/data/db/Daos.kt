@@ -28,6 +28,9 @@ interface ExerciseDao {
     @Query("SELECT * FROM Exercise WHERE name = :name COLLATE NOCASE LIMIT 1")
     suspend fun findByName(name: String): Exercise?
 
+    @Query("SELECT COUNT(*) FROM Exercise")
+    suspend fun count(): Int
+
     @Insert suspend fun insert(e: Exercise): Long
     @Update suspend fun update(e: Exercise)
     @Delete suspend fun delete(e: Exercise)
@@ -70,6 +73,9 @@ interface ProgramDao {
 
     @Query("UPDATE Program SET isActive = (id = :programId)")
     suspend fun setActive(programId: Long)
+
+    @Query("SELECT COUNT(*) FROM Program")
+    suspend fun countPrograms(): Int
 
     @Insert suspend fun insertProgram(p: Program): Long
     @Update suspend fun updateProgram(p: Program)
