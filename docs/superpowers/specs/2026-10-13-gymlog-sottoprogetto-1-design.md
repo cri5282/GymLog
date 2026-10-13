@@ -88,6 +88,9 @@ Note:
   Parser tollerante: colonne per nome (non per posizione), campi tra virgolette con virgole interne,
   formati data tentati in sequenza (es. `12 Oct 2026, 18:30` e ISO). **Da verificare sul file reale
   dell'utente prima dell'implementazione** (l'utente fornisce un export).
+- Verificato sull'export reale (2026-10-13, 241 serie, 24 allenamenti): date in italiano `12 ott 2026, 07:57`,
+  decimali con il punto, `set_type` sempre `normal`, `rpe` quasi sempre vuoto, alcune serie senza `weight_kg`
+  (corpo libero) → importate con 0 kg.
 - Mappatura: righe raggruppate per (`title`, `start_time`) → una `WorkoutSession` (`source = HEVY_IMPORT`).
   `exercise_title` → `Exercise` con `hevyName` uguale; se assente, nuovo esercizio
   (`primaryMuscle` = ADDOME come segnaposto e flag "da completare" mostrato in libreria).
