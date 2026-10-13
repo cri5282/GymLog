@@ -2,6 +2,7 @@ package it.gymlog.app.ui.workout
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import it.gymlog.app.data.db.SetEntry
 import it.gymlog.app.data.db.SetType
 import it.gymlog.app.data.repo.PlannedExercise
 import it.gymlog.app.data.repo.SessionRecap
@@ -23,9 +24,11 @@ data class RowState(
     val rir: Int?,
     val type: SetType,
     val notes: String = "",
-    val done: Boolean = false,
-    val entryId: Long? = null,
-)
+    /** Serie salvata nel database; null finché non viene confermata con ✓. */
+    val entry: SetEntry? = null,
+) {
+    val done: Boolean get() = entry != null
+}
 
 data class PageState(val planned: PlannedExercise, val rows: List<RowState>, val stepKg: Double)
 
@@ -58,10 +61,28 @@ class WorkoutViewModel(
     }
 
     private suspend fun page(p: PlannedExercise): PageState {
-        val doneRows = p.done.map { RowState(it.weightKg, it.reps, it.rir, it.setType, it.notes, done = true, entryId = it.id) }
-        val todo = p.prefill.drop(doneRows.size).map { RowState(it.weightKg, it.reps, it.rir, it.type) }
+        // Una riga per posizione di serie (setIndex): le serie confermate restano al loro posto anche se fatte fuori ordine.
+        val bySlot = p.done.associateBy { it.setIndex }
+        val count = maxOf(p.prefill.size, (bySlot.keys.maxOrNull() ?: -1) + 1)
+        val rows = (0 until count).map { i ->
+            bySlot[i]?.let { RowState(it.weightKg, it.reps, it.rir, it.setType, it.notes, entry = it) }
+                ?: (p.prefill.getOrNull(i) ?: p.prefill.lastOrNull())
+                    ?.let { RowState(it.weightKg, it.reps, it.rir, it.type) }
+                ?: RowState(0.0, 0, null, SetType.WORKING)
+        }
         val step = p.exercise.exercise.loadStepKg ?: settings.current().defaultLoadStepKg
-        return PageState(p, doneRows + todo, step)
+        return PageState(p, rows, step)
+    }
+
+    /** Modifica una riga; se la serie è già salvata, aggiorna subito anche il database. */
+    private fun editAndPersist(page: Int, row: Int, transform: (RowState) -> RowState) {
+        editRow(page, row, transform)
+        val r = _state.value.pages.getOrNull(page)?.rows?.getOrNull(row) ?: return
+        val entry = r.entry ?: return
+        val updated = entry.copy(weightKg = r.weightKg, reps = r.reps, rir = r.rir, setType = r.type, notes = r.notes.trim())
+        if (updated == entry) return
+        editRow(page, row) { it.copy(entry = updated) }
+        viewModelScope.launch { workouts.updateSet(updated) }
     }
 
     private fun editRow(page: Int, row: Int, transform: (RowState) -> RowState) = _state.update { s ->
@@ -75,29 +96,34 @@ class WorkoutViewModel(
 
     fun changeWeight(page: Int, row: Int, steps: Int) {
         val step = _state.value.pages.getOrNull(page)?.stepKg ?: return
-        editRow(page, row) { it.copy(weightKg = max(0.0, it.weightKg + steps * step)) }
+        editAndPersist(page, row) { it.copy(weightKg = max(0.0, it.weightKg + steps * step)) }
     }
-    fun setWeight(page: Int, row: Int, kg: Double) = editRow(page, row) { it.copy(weightKg = kg.coerceIn(0.0, 1000.0)) }
-    fun changeReps(page: Int, row: Int, delta: Int) = editRow(page, row) { it.copy(reps = (it.reps + delta).coerceIn(0, 100)) }
-    fun setReps(page: Int, row: Int, reps: Int) = editRow(page, row) { it.copy(reps = reps.coerceIn(0, 100)) }
-    fun setRir(page: Int, row: Int, rir: Int?) = editRow(page, row) { it.copy(rir = rir?.coerceIn(0, 5)) }
-    fun setType(page: Int, row: Int, type: SetType) = editRow(page, row) { it.copy(type = type) }
-    fun setNote(page: Int, row: Int, notes: String) = editRow(page, row) { it.copy(notes = notes) }
+    fun setWeight(page: Int, row: Int, kg: Double) = editAndPersist(page, row) { it.copy(weightKg = kg.coerceIn(0.0, 1000.0)) }
+    fun changeReps(page: Int, row: Int, delta: Int) = editAndPersist(page, row) { it.copy(reps = (it.reps + delta).coerceIn(0, 100)) }
+    fun setReps(page: Int, row: Int, reps: Int) = editAndPersist(page, row) { it.copy(reps = reps.coerceIn(0, 100)) }
+    fun setRir(page: Int, row: Int, rir: Int?) = editAndPersist(page, row) { it.copy(rir = rir?.coerceIn(0, 5)) }
+    fun setType(page: Int, row: Int, type: SetType) = editAndPersist(page, row) { it.copy(type = type) }
+    fun setNote(page: Int, row: Int, notes: String) = editAndPersist(page, row) { it.copy(notes = notes) }
 
-    /** Salva la serie (o la aggiorna se già confermata). Una nuova conferma avvia il recupero. */
+    /** Righe in fase di salvataggio: un secondo tocco su ✓ durante il salvataggio viene ignorato. */
+    private val saving = mutableSetOf<Pair<Int, Int>>()
+
+    /** Conferma la serie e avvia il recupero; su una serie già salvata non fa nulla (le modifiche sono già salvate). */
     fun confirm(page: Int, row: Int) {
         val p = _state.value.pages.getOrNull(page) ?: return
         val r = p.rows.getOrNull(row) ?: return
+        if (r.done || !saving.add(page to row)) return
         val draft = SetDraft(r.weightKg, r.reps, r.rir, r.type)
+        val order = p.planned.order
+        val exerciseId = p.planned.exercise.exercise.id
         viewModelScope.launch {
-            if (r.done && r.entryId != null) {
-                val existing = workouts.planSingle(sessionId, p.planned.exercise.exercise.id, p.planned.order, p.planned.target, p.planned.restSeconds)
-                    ?.done?.firstOrNull { it.id == r.entryId } ?: return@launch
-                workouts.updateSet(existing.copy(weightKg = r.weightKg, reps = r.reps, rir = r.rir, setType = r.type, notes = r.notes.trim()))
-            } else {
-                val id = workouts.confirmSet(sessionId, p.planned.exercise.exercise.id, p.planned.order, row, draft, r.notes)
-                editRow(page, row) { it.copy(done = true, entryId = id) }
+            try {
+                val id = workouts.confirmSet(sessionId, exerciseId, order, row, draft, r.notes)
+                val entry = workouts.getSet(id)
+                editRow(page, row) { it.copy(entry = entry) }
                 timer.start(p.planned.restSeconds)
+            } finally {
+                saving.remove(page to row)
             }
         }
     }

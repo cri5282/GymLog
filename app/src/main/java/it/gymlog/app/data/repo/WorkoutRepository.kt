@@ -67,16 +67,27 @@ class WorkoutRepository(
         val done = dao.getSets(sessionId)
         val dayExercises = session.routineDayId?.let { db.programDao().getDayExercises(it) }.orEmpty()
 
+        val groups = done.groupBy { it.exerciseOrder to it.exerciseId }
+        val used = mutableSetOf<Pair<Int, Long>>()
         val result = mutableListOf<PlannedExercise>()
         dayExercises.forEachIndexed { i, re ->
             val r = re.routineExercise
             val target = Target(r.targetSets, r.repMin, r.repMax, r.targetRirMin, r.targetRirMax)
-            result += planned(sessionId, re.exercise, i, target, r.restSeconds, step,
-                done.filter { it.exerciseOrder == i && it.exerciseId == r.exerciseId })
+            val original = i to r.exerciseId
+            // Se la posizione non ha serie dell'esercizio previsto ma di un altro, è stato sostituito solo per oggi.
+            val substitute = groups.keys.firstOrNull { it.first == i && it != original && it !in used }
+            if (original !in groups && substitute != null) {
+                val details = db.exerciseDao().getWithDetails(substitute.second)
+                if (details != null) {
+                    used += substitute
+                    result += planned(sessionId, details, i, target, r.restSeconds, step, groups.getValue(substitute))
+                    return@forEachIndexed
+                }
+            }
+            used += original
+            result += planned(sessionId, re.exercise, i, target, r.restSeconds, step, groups[original].orEmpty())
         }
-        val matched = result.flatMap { it.done }.map { it.id }.toSet()
-        val extraGroups = done.filter { it.id !in matched }.groupBy { it.exerciseOrder to it.exerciseId }
-        for ((key, sets) in extraGroups.entries.sortedBy { it.key.first }) {
+        for ((key, sets) in groups.entries.filter { it.key !in used }.sortedBy { it.key.first }) {
             val details = db.exerciseDao().getWithDetails(key.second) ?: continue
             result += planned(sessionId, details, key.first, null, DEFAULT_REST_SECONDS, step, sets)
         }
@@ -119,6 +130,7 @@ class WorkoutRepository(
         )
     )
 
+    suspend fun getSet(id: Long): SetEntry? = dao.getSet(id)
     suspend fun updateSet(set: SetEntry) = dao.updateSet(set)
     suspend fun deleteSet(set: SetEntry) = dao.deleteSet(set)
     suspend fun deleteSession(session: WorkoutSession) = dao.deleteSession(session)

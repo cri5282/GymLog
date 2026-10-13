@@ -43,7 +43,14 @@ class TodayViewModel(
         TodayState(program as Program?, today, days.filter { it != today }, unfinished)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayState())
 
-    fun start(dayId: Long?, onStarted: (Long) -> Unit) = viewModelScope.launch {
-        onStarted(workouts.startOrResume(dayId))
+    private var starting = false
+
+    /** Ignora i tocchi ripetuti mentre l'avvio è in corso. */
+    fun start(dayId: Long?, onStarted: (Long) -> Unit) {
+        if (starting) return
+        starting = true
+        viewModelScope.launch {
+            try { onStarted(workouts.startOrResume(dayId)) } finally { starting = false }
+        }
     }
 }

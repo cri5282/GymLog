@@ -104,7 +104,7 @@ fun SetRow(index: Int, row: RowState, actions: RowActions) {
                     modifier = Modifier.padding(start = 8.dp).size(64.dp),
                     colors = if (row.done) IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.tertiary)
                     else IconButtonDefaults.filledIconButtonColors(),
-                ) { Icon(Icons.Default.Check, if (row.done) "Aggiorna serie" else "Serie fatta", Modifier.size(36.dp)) }
+                ) { Icon(Icons.Default.Check, if (row.done) "Serie salvata" else "Serie fatta", Modifier.size(36.dp)) }
             }
             if (showNote) {
                 OutlinedTextField(row.notes, actions.setNote, label = { Text("Nota") }, singleLine = true, modifier = Modifier.fillMaxWidth())

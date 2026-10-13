@@ -96,4 +96,10 @@ class ExerciseRepositoryTest {
         repo.movePhoto(second, up = true)
         assertEquals(b.path, repo.get(id)!!.sortedPhotos[0].filePath)
     }
+
+    @Test(expected = DuplicateHevyNameException::class)
+    fun save_duplicateHevyName_throwsTypedException() = runTest {
+        repo.save(draft("A").copy(hevyName = "Chest Press"))
+        repo.save(draft("B").copy(hevyName = "Chest Press"))
+    }
 }

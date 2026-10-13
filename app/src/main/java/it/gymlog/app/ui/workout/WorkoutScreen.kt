@@ -120,7 +120,7 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                     Button(onClick = { picker = Picker.ADD }, Modifier.padding(top = 16.dp).heightIn(min = 56.dp)) { Text("Aggiungi esercizio") }
                 }
             } else {
-                HorizontalPager(pager, Modifier.fillMaxSize(), key = { state.pages.getOrNull(it)?.planned?.order ?: it }) { index ->
+                HorizontalPager(pager, Modifier.fillMaxSize(), key = { i -> state.pages.getOrNull(i)?.planned?.let { "${it.order}:${it.exercise.exercise.id}" } ?: "i$i" }) { index ->
                     val page = state.pages.getOrNull(index) ?: return@HorizontalPager
                     ExercisePage(
                         page = page,

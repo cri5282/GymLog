@@ -147,6 +147,7 @@ fun ExerciseEditScreen(exerciseId: Long, onBack: () -> Unit, onHistory: (Long) -
             OutlinedTextField(
                 value = form.hevyName, onValueChange = { v -> vm.edit { it.copy(hevyName = v) } },
                 label = { Text("Nome in Hevy (per l'importazione)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                isError = form.hevyNameError != null, supportingText = form.hevyNameError?.let { { Text(it) } },
             )
             OutlinedTextField(
                 value = form.loadStep, onValueChange = { v -> vm.edit { it.copy(loadStep = v) } },

@@ -96,7 +96,7 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
         },
     ) { padding ->
         NavHost(nav, startDestination = Routes.TODAY, modifier = Modifier.padding(padding)) {
-            composable(Routes.TODAY) { TodayScreen(onOpenWorkout = { nav.navigate(Routes.workout(it)) }) }
+            composable(Routes.TODAY) { TodayScreen(onOpenWorkout = { nav.navigate(Routes.workout(it)) { launchSingleTop = true } }) }
             composable(Routes.HISTORY) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
             composable(Routes.SESSION, listOf(navArgument("sessionId") { type = NavType.LongType })) { entry ->
                 SessionDetailScreen(entry.arguments!!.getLong("sessionId"), onBack = { nav.popBackStack() },

@@ -8,6 +8,7 @@ import it.gymlog.app.data.db.ExercisePhoto
 import it.gymlog.app.data.db.LengthBias
 import it.gymlog.app.data.db.Muscle
 import it.gymlog.app.data.repo.DeleteResult
+import it.gymlog.app.data.repo.DuplicateHevyNameException
 import it.gymlog.app.data.repo.DuplicateNameException
 import it.gymlog.app.data.repo.ExerciseDraft
 import it.gymlog.app.data.repo.ExerciseRepository
@@ -34,6 +35,7 @@ data class ExerciseForm(
     val hevyName: String = "",
     val loadStep: String = "",
     val nameError: String? = null,
+    val hevyNameError: String? = null,
     val used: Boolean = false,
 )
 
@@ -73,7 +75,7 @@ class ExerciseEditViewModel(
         }
     }
 
-    fun edit(transform: (ExerciseForm) -> ExerciseForm) = _form.update { transform(it).copy(nameError = null) }
+    fun edit(transform: (ExerciseForm) -> ExerciseForm) = _form.update { transform(it).copy(nameError = null, hevyNameError = null) }
 
     fun newCameraFile(): File = photoStore.newCameraFile()
 
@@ -114,6 +116,8 @@ class ExerciseEditViewModel(
             onDone()
         } catch (e: DuplicateNameException) {
             _form.update { it.copy(nameError = e.message) }
+        } catch (e: DuplicateHevyNameException) {
+            _form.update { it.copy(hevyNameError = e.message) }
         }
     }
 

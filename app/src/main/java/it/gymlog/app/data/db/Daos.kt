@@ -142,6 +142,9 @@ interface WorkoutDao {
     @Query("SELECT * FROM SetEntry WHERE sessionId = :sessionId ORDER BY exerciseOrder, setIndex, id")
     suspend fun getSets(sessionId: Long): List<SetEntry>
 
+    @Query("SELECT * FROM SetEntry WHERE id = :id")
+    suspend fun getSet(id: Long): SetEntry?
+
     @Insert suspend fun insertSet(s: SetEntry): Long
     @Insert suspend fun insertSets(s: List<SetEntry>)
     @Update suspend fun updateSet(s: SetEntry)

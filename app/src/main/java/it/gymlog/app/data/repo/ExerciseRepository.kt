@@ -26,6 +26,9 @@ enum class DeleteResult { DELETED, ARCHIVED }
 
 class DuplicateNameException(name: String) : Exception("Esiste già un esercizio chiamato \"$name\"")
 
+class DuplicateHevyNameException(hevyName: String, usedBy: String) :
+    Exception("Il nome Hevy \"$hevyName\" è già usato da \"$usedBy\"")
+
 class ExerciseRepository(private val db: AppDatabase, private val photos: PhotoStore) {
     private val dao = db.exerciseDao()
 
@@ -46,6 +49,8 @@ class ExerciseRepository(private val db: AppDatabase, private val photos: PhotoS
         val name = draft.name.trim()
         require(name.isNotEmpty()) { "Il nome è obbligatorio" }
         dao.findByName(name)?.let { if (it.id != draft.id) throw DuplicateNameException(name) }
+        val hevyName = draft.hevyName?.trim()?.ifEmpty { null }
+        hevyName?.let { h -> dao.findByHevyName(h)?.let { if (it.id != draft.id) throw DuplicateHevyNameException(h, it.name) } }
         val existing = if (draft.id != 0L) dao.getWithDetails(draft.id)?.exercise else null
         val exercise = Exercise(
             id = draft.id,
@@ -53,7 +58,7 @@ class ExerciseRepository(private val db: AppDatabase, private val photos: PhotoS
             primaryMuscle = draft.primary,
             lengthBias = draft.bias,
             executionNotes = draft.notes.trim(),
-            hevyName = draft.hevyName?.trim()?.ifEmpty { null },
+            hevyName = hevyName,
             loadStepKg = draft.loadStepKg,
             archived = existing?.archived ?: false,
             needsReview = false,

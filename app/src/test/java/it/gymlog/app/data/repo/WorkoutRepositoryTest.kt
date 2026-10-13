@@ -91,4 +91,17 @@ class WorkoutRepositoryTest {
         assertEquals(2, recap.workingSets)
         assertEquals(1280.0, recap.volumeKg, 1e-9)
     }
+
+    @Test fun plan_afterReplacingSlot_keepsUniqueOrdersAndShowsSubstitute() = runTest {
+        val r = repo()
+        val s = r.startOrResume(pushA())
+        val lateral = db.exerciseDao().findByName("Lateral Raise (Cable)")!!.id
+        r.confirmSet(s, lateral, 5, 0, w(10.0, 12, 1), "") // Crunch (posizione 5) sostituito
+        val plan = r.plan(s)
+        assertEquals(plan.map { it.order }.distinct(), plan.map { it.order })
+        assertEquals(6, plan.size)
+        assertEquals("Lateral Raise (Cable)", plan[5].exercise.exercise.name)
+        assertEquals(1, plan[5].done.size)
+        assertEquals(2, plan[5].target!!.sets)
+    }
 }

@@ -156,4 +156,43 @@ class WorkoutViewModelTest {
         assertEquals(1, recap.workingSets)
         assertEquals(500.0, recap.volumeKg, 1e-9)
     }
+
+    @Test fun doubleTapConfirm_savesOnce() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.confirm(0, 0); vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        withContext(Dispatchers.Default.limitedParallelism(1)) { kotlinx.coroutines.delay(300) }
+        assertEquals(1, db.workoutDao().getSets(e.session).size)
+    }
+
+    @Test fun editingDoneRow_isSavedWithoutReconfirm() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.setWeight(0, 0, 60.0)
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        vm.setWeight(0, 0, 65.0)
+        vm.setRir(0, 0, 0)
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(10_000) {
+                while (db.workoutDao().getSets(e.session).single().let { it.weightKg != 65.0 || it.rir != 0 }) kotlinx.coroutines.delay(20)
+            }
+        }
+    }
+
+    @Test fun confirmOutOfOrder_resumeKeepsSlots() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.setWeight(0, 2, 70.0)
+        vm.confirm(0, 2)
+        vm.await { it.pages[0].rows[2].done }
+        val rows = vm(e).await { true }.pages[0].rows
+        assertEquals(3, rows.size)
+        assertEquals(listOf(false, false, true), rows.map { it.done })
+        assertEquals(70.0, rows[2].weightKg, 1e-9)
+    }
 }
