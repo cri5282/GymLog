@@ -7,6 +7,7 @@ import it.gymlog.app.data.db.RoutineDay
 import it.gymlog.app.data.db.RoutineExercise
 import it.gymlog.app.data.db.RoutineExerciseWithExercise
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
 class ProgramRepository(private val db: AppDatabase) {
@@ -40,6 +41,10 @@ class ProgramRepository(private val db: AppDatabase) {
     }
 
     fun observeDayExercises(dayId: Long): Flow<List<RoutineExerciseWithExercise>> = dao.observeDayExercises(dayId)
+    /** Numero di esercizi per scheda (id scheda → conteggio). */
+    fun observeExerciseCounts(): Flow<Map<Long, Int>> =
+        dao.observeExerciseCounts().map { list -> list.associate { it.routineDayId to it.count } }
+
     suspend fun getDayExercises(dayId: Long): List<RoutineExerciseWithExercise> = dao.getDayExercises(dayId)
 
     suspend fun addExerciseToDay(dayId: Long, exerciseId: Long): Long =

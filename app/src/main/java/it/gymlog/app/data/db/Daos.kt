@@ -102,6 +102,9 @@ interface ProgramDao {
     @Query("SELECT * FROM RoutineExercise WHERE routineDayId = :dayId ORDER BY sortOrder, id")
     suspend fun getDayExercises(dayId: Long): List<RoutineExerciseWithExercise>
 
+    @Query("SELECT routineDayId, COUNT(*) AS count FROM RoutineExercise GROUP BY routineDayId")
+    fun observeExerciseCounts(): Flow<List<DayExerciseCount>>
+
     @Insert suspend fun insertRoutineExercise(re: RoutineExercise): Long
     @Update suspend fun updateRoutineExercises(list: List<RoutineExercise>)
     @Delete suspend fun deleteRoutineExercise(re: RoutineExercise)

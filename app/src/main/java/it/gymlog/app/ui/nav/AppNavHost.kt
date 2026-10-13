@@ -28,8 +28,7 @@ import it.gymlog.app.ui.home.HomeScreen
 import it.gymlog.app.ui.history.HistoryScreen
 import it.gymlog.app.ui.history.SessionDetailScreen
 import it.gymlog.app.ui.programs.DayEditScreen
-import it.gymlog.app.ui.programs.ProgramEditScreen
-import it.gymlog.app.ui.programs.ProgramListScreen
+import it.gymlog.app.ui.plan.PlanScreen
 import it.gymlog.app.ui.settings.SettingsScreen
 import it.gymlog.app.ui.workout.WorkoutScreen
 
@@ -44,14 +43,12 @@ object Routes {
     const val SESSION = "history/{sessionId}"
     const val EXERCISE_HISTORY = "exerciseHistory/{exerciseId}"
     const val EXERCISE_EDIT = "exercise/{exerciseId}"
-    const val PROGRAM_EDIT = "program/{programId}"
     const val DAY_EDIT = "day/{dayId}"
 
     fun workout(sessionId: Long) = "workout/$sessionId"
     fun session(sessionId: Long) = "history/$sessionId"
     fun exerciseHistory(exerciseId: Long) = "exerciseHistory/$exerciseId"
     fun exerciseEdit(exerciseId: Long) = "exercise/$exerciseId"
-    fun programEdit(programId: Long) = "program/$programId"
     fun dayEdit(dayId: Long) = "day/$dayId"
 
     val withBottomBar = setOf(HOME, PLAN, STATS, EXERCISES)
@@ -95,7 +92,7 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
                     onPickRoutine = { picking = true },
                 )
             }
-            composable(Routes.PLAN) { ProgramListScreen(onOpen = { nav.navigate(Routes.programEdit(it)) }) }
+            composable(Routes.PLAN) { PlanScreen(onOpenRoutine = { nav.navigate(Routes.dayEdit(it)) }) }
             composable(Routes.STATS) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
             composable(Routes.HISTORY) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
             composable(Routes.SESSION, listOf(navArgument("sessionId") { type = NavType.LongType })) { entry ->
@@ -109,10 +106,6 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
             composable(Routes.EXERCISE_EDIT, listOf(navArgument("exerciseId") { type = NavType.LongType })) { entry ->
                 ExerciseEditScreen(entry.arguments!!.getLong("exerciseId"), onBack = { nav.popBackStack() },
                     onHistory = { nav.navigate(Routes.exerciseHistory(it)) })
-            }
-            composable(Routes.PROGRAM_EDIT, listOf(navArgument("programId") { type = NavType.LongType })) { entry ->
-                ProgramEditScreen(entry.arguments!!.getLong("programId"), onBack = { nav.popBackStack() },
-                    onOpenDay = { nav.navigate(Routes.dayEdit(it)) })
             }
             composable(Routes.DAY_EDIT, listOf(navArgument("dayId") { type = NavType.LongType })) { entry ->
                 DayEditScreen(entry.arguments!!.getLong("dayId"), onBack = { nav.popBackStack() })
