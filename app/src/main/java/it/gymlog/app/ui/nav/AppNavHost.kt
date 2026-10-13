@@ -24,13 +24,13 @@ import it.gymlog.app.ui.design.Gym
 import it.gymlog.app.ui.exercises.ExerciseEditScreen
 import it.gymlog.app.ui.exercises.ExerciseListScreen
 import it.gymlog.app.ui.history.ExerciseHistoryScreen
+import it.gymlog.app.ui.home.HomeScreen
 import it.gymlog.app.ui.history.HistoryScreen
 import it.gymlog.app.ui.history.SessionDetailScreen
 import it.gymlog.app.ui.programs.DayEditScreen
 import it.gymlog.app.ui.programs.ProgramEditScreen
 import it.gymlog.app.ui.programs.ProgramListScreen
 import it.gymlog.app.ui.settings.SettingsScreen
-import it.gymlog.app.ui.today.TodayScreen
 import it.gymlog.app.ui.workout.WorkoutScreen
 
 object Routes {
@@ -87,7 +87,14 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
         },
     ) { padding ->
         NavHost(nav, startDestination = Routes.HOME, modifier = Modifier.padding(padding)) {
-            composable(Routes.HOME) { TodayScreen(onOpenWorkout = openWorkout) }
+            composable(Routes.HOME) {
+                HomeScreen(
+                    onOpenWorkout = openWorkout,
+                    onOpenSession = { nav.navigate(Routes.session(it)) },
+                    onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                    onPickRoutine = { picking = true },
+                )
+            }
             composable(Routes.PLAN) { ProgramListScreen(onOpen = { nav.navigate(Routes.programEdit(it)) }) }
             composable(Routes.STATS) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
             composable(Routes.HISTORY) { HistoryScreen(onOpen = { nav.navigate(Routes.session(it)) }) }
