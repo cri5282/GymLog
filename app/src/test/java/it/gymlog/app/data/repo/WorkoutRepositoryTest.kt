@@ -6,6 +6,7 @@ import it.gymlog.app.data.db.SetType
 import it.gymlog.app.domain.SetDraft
 import it.gymlog.app.testutil.inMemoryDb
 import it.gymlog.app.testutil.testSettings
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -103,5 +104,41 @@ class WorkoutRepositoryTest {
         assertEquals("Lateral Raise (Cable)", plan[5].exercise.exercise.name)
         assertEquals(1, plan[5].done.size)
         assertEquals(2, plan[5].target!!.sets)
+    }
+
+    @Test fun bestWeight_ignoresWarmupAndUnfinished() = runTest {
+        val r = repo()
+        val ex = db.exerciseDao().findByName("Incline Chest Press (Machine)")!!.id
+        val a = r.startOrResume(pushA())
+        r.confirmSet(a, ex, 0, 0, SetDraft(100.0, 5, null, SetType.WARMUP), "")
+        r.confirmSet(a, ex, 0, 1, w(80.0, 8, 2), "")
+        r.finish(a)
+        val b = r.startOrResume(pushA())
+        r.confirmSet(b, ex, 0, 0, w(90.0, 8, 2), "")
+        assertEquals(80.0, r.bestWeight(ex)!!, 1e-9)
+        assertNull(r.bestWeight(db.exerciseDao().findByName("Shrug (Machine)")!!.id))
+    }
+
+    @Test fun countWorkingSetsSince_excludesWarmupAndOlder() = runTest {
+        val r = repo()  // clock fisso a 1_000_000
+        val ex = db.exerciseDao().findByName("Incline Chest Press (Machine)")!!.id
+        val a = r.startOrResume(pushA())
+        r.confirmSet(a, ex, 0, 0, SetDraft(40.0, 10, null, SetType.WARMUP), "")
+        r.confirmSet(a, ex, 0, 1, w(80.0, 8, 2), "")
+        r.confirmSet(a, ex, 0, 2, w(80.0, 8, 2), "")
+        r.finish(a)
+        assertEquals(2, r.countWorkingSetsSince(0).first())
+        assertEquals(0, r.countWorkingSetsSince(2_000_000).first())
+    }
+
+    @Test fun finishedSessionTimes_haveDurationAndSets() = runTest {
+        val r = repo()
+        val a = r.startOrResume(pushA())
+        r.confirmSet(a, db.exerciseDao().findByName("Incline Chest Press (Machine)")!!.id, 0, 0, w(80.0, 8, 2), "")
+        r.finish(a)
+        val t = r.observeFinishedSessionTimes().first().single()
+        assertEquals("Push A", t.title)
+        assertEquals(1, t.setCount)
+        assertEquals(1_000_000L, t.endedAt)
     }
 }

@@ -55,6 +55,19 @@ class ProgramRepository(private val db: AppDatabase) {
         dao.updateRoutineExercises(moved(list, { it.id == re.id }, up) { r, i -> r.copy(sortOrder = i) })
     }
 
+    /** Assegna [dayOfWeek] alla scheda [routineDayId] (null = Riposo), togliendolo alle altre schede del programma. */
+    suspend fun assignDay(programId: Long, dayOfWeek: Int, routineDayId: Long?) = db.withTransaction {
+        val days = dao.getDays(programId)
+        val updated = days.mapNotNull { d ->
+            when {
+                d.id == routineDayId -> d.copy(dayOfWeek = dayOfWeek)
+                d.dayOfWeek == dayOfWeek -> d.copy(dayOfWeek = null)
+                else -> null
+            }
+        }
+        dao.updateDays(updated)
+    }
+
     /** Scheda del programma attivo assegnata al giorno della settimana di [date]. */
     suspend fun todayDay(date: LocalDate): RoutineDay? {
         val active = dao.getActive() ?: return null

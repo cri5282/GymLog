@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,5 +55,27 @@ class ProgramRepositoryTest {
         val last = repo.observeDayExercises(day.id).first().last().routineExercise
         assertEquals(exId, last.exerciseId)
         assertEquals(listOf(3, 8, 12, 1, 2, 120), with(last) { listOf(targetSets, repMin, repMax, targetRirMin, targetRirMax, restSeconds) })
+    }
+
+    private suspend fun day(name: String) = db.programDao().getDays(db.programDao().getActive()!!.id).first { it.name == name }
+
+    @Test fun assignDay_movesDayFromOtherRoutine() = runTest {
+        val p = db.programDao().getActive()!!.id
+        repo.assignDay(p, 1, day("Pull A").id)
+        assertEquals(1, day("Pull A").dayOfWeek)
+        assertNull(day("Push A").dayOfWeek)
+    }
+
+    @Test fun assignDay_rest_clearsDay() = runTest {
+        val p = db.programDao().getActive()!!.id
+        repo.assignDay(p, 3, null)
+        assertTrue(db.programDao().getDays(p).none { it.dayOfWeek == 3 })
+    }
+
+    @Test fun assignDay_onlyAffectsSameProgram() = runTest {
+        val other = repo.create("Altro")
+        val otherDay = repo.addDay(other, "Full body", 1)
+        repo.assignDay(db.programDao().getActive()!!.id, 1, day("Legs").id)
+        assertEquals(1, repo.getDay(otherDay)!!.dayOfWeek)
     }
 }

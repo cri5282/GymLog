@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import it.gymlog.app.data.db.AppDatabase
 import it.gymlog.app.data.db.ExerciseWithDetails
 import it.gymlog.app.data.db.SessionSummary
+import it.gymlog.app.data.db.SessionTime
 import it.gymlog.app.data.db.SetEntry
 import it.gymlog.app.data.db.SetWithExercise
 import it.gymlog.app.data.db.SetWithSession
@@ -58,6 +59,9 @@ class WorkoutRepository(
     fun observeSession(id: Long): Flow<WorkoutSession?> = dao.observeSession(id)
     fun observeSets(sessionId: Long): Flow<List<SetWithExercise>> = dao.observeSets(sessionId)
     fun observeFinishedSessions(): Flow<List<SessionSummary>> = dao.observeFinishedSessions()
+    fun observeFinishedSessionTimes(): Flow<List<SessionTime>> = dao.observeFinishedSessionTimes()
+    fun countWorkingSetsSince(fromMillis: Long): Flow<Int> = dao.countWorkingSetsSince(fromMillis)
+    suspend fun bestWeight(exerciseId: Long): Double? = dao.bestWeight(exerciseId)
     fun historyFor(exerciseId: Long): Flow<List<SetWithSession>> = dao.historyFor(exerciseId)
 
     /** Esercizi della scheda + esercizi con serie in questa sessione non previsti + [extraExerciseIds]. */

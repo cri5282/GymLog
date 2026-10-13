@@ -38,3 +38,11 @@ data class SessionSummary(
     val source: SessionSource,
     val setCount: Int,
 )
+
+data class SessionTime(
+    val id: Long,
+    val title: String,
+    val startedAt: Long,
+    val endedAt: Long?,
+    val setCount: Int,
+)

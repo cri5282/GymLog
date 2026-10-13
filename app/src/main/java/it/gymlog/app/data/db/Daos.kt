@@ -132,6 +132,25 @@ interface WorkoutDao {
     )
     fun observeFinishedSessions(): Flow<List<SessionSummary>>
 
+    @Query(
+        "SELECT s.id, s.title, s.startedAt, s.endedAt, " +
+            "(SELECT COUNT(*) FROM SetEntry e WHERE e.sessionId = s.id) AS setCount " +
+            "FROM WorkoutSession s WHERE s.endedAt IS NOT NULL ORDER BY s.startedAt DESC"
+    )
+    fun observeFinishedSessionTimes(): Flow<List<SessionTime>>
+
+    @Query(
+        "SELECT COUNT(*) FROM SetEntry e JOIN WorkoutSession s ON s.id = e.sessionId " +
+            "WHERE s.endedAt IS NOT NULL AND e.setType != 'WARMUP' AND e.completedAt >= :fromMillis"
+    )
+    fun countWorkingSetsSince(fromMillis: Long): Flow<Int>
+
+    @Query(
+        "SELECT MAX(e.weightKg) FROM SetEntry e JOIN WorkoutSession s ON s.id = e.sessionId " +
+            "WHERE e.exerciseId = :exerciseId AND s.endedAt IS NOT NULL AND e.setType != 'WARMUP'"
+    )
+    suspend fun bestWeight(exerciseId: Long): Double?
+
     @Query("SELECT EXISTS(SELECT 1 FROM WorkoutSession WHERE title = :title AND startedAt = :startedAt)")
     suspend fun existsSession(title: String, startedAt: Long): Boolean
 
