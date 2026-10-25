@@ -22,7 +22,9 @@ class SettingsRepositoryTest {
     @Test fun defaults_whenEmpty() = runTest {
         assertEquals(
             Settings(2.5, OneRmFormula.EPLEY, timerVibration = true, timerSound = true,
-                themeMode = ThemeMode.DARK, accent = Accent.GREEN, keepScreenOn = true),
+                themeMode = ThemeMode.DARK, accent = Accent.GREEN, keepScreenOn = true,
+                autoWarmup = true, heightCm = null, birthYear = null, sex = Sex.MALE,
+                autoBackup = false, backupTreeUri = null, lastBackupAt = 0, appIcon = AppIcon.CLASSIC),
             repo(backgroundScope).settings.first(),
         )
     }
@@ -46,7 +48,8 @@ class SettingsRepositoryTest {
     }
 
     @Test fun upgradeFrom100_keepsOldValuesAndNewDefaults() = runTest {
-        val store = PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.root.resolve("old.preferences_pb") }
+        val file = tmp.newFile("old.preferences_pb")
+        val store = PreferenceDataStoreFactory.create(scope = backgroundScope) { file }
         store.edit {
             it[doublePreferencesKey("default_load_step_kg")] = 5.0
             it[booleanPreferencesKey("timer_sound")] = false
@@ -60,7 +63,8 @@ class SettingsRepositoryTest {
     }
 
     @Test fun unknownAccent_fallsBackToGreen() = runTest {
-        val store = PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.root.resolve("bad.preferences_pb") }
+        val file = tmp.newFile("bad.preferences_pb")
+        val store = PreferenceDataStoreFactory.create(scope = backgroundScope) { file }
         store.edit { it[stringPreferencesKey("accent")] = "ROSA" }
         assertEquals(Accent.GREEN, SettingsRepository(store).settings.first().accent)
     }

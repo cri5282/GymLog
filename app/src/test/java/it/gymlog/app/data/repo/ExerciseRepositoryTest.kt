@@ -102,4 +102,11 @@ class ExerciseRepositoryTest {
         repo.save(draft("A").copy(hevyName = "Chest Press"))
         repo.save(draft("B").copy(hevyName = "Chest Press"))
     }
+
+    @Test fun save_persistsSingleFlag_andKeepsItOnEdit() = runTest {
+        val id = repo.save(draft().copy(single = true))
+        assertTrue(repo.get(id)!!.exercise.single)
+        repo.save(draft().copy(id = id, single = false))
+        assertFalse(repo.get(id)!!.exercise.single)
+    }
 }

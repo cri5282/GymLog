@@ -19,6 +19,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -52,6 +54,7 @@ import it.gymlog.app.ui.common.appViewModel
 import it.gymlog.app.ui.design.EmptyState
 import it.gymlog.app.ui.design.Gym
 import it.gymlog.app.ui.design.PrimaryButton
+import it.gymlog.app.ui.exercises.ExerciseEditScreen
 import it.gymlog.app.ui.exercises.ExercisePickerDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -69,6 +72,7 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
     val settings by container.settings.settings.collectAsStateWithLifecycle(Settings())
     var picker by remember { mutableStateOf<Picker?>(null) }
     var confirmFinish by remember { mutableStateOf(false) }
+    var editingExercise by remember { mutableStateOf<Long?>(null) }
     var notesOpen by remember { mutableStateOf<String?>(null) }
     val pager = rememberPagerState { state.pages.size }
     val scope = rememberCoroutineScope()
@@ -118,6 +122,7 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                 canReplace = state.pages.getOrNull(pager.currentPage)?.rows?.none { it.done } == true,
                 onClose = onExit, onFinish = { confirmFinish = true },
                 onAddExercise = { picker = Picker.ADD }, onReplaceExercise = { picker = Picker.REPLACE },
+                onEditExercise = { state.pages.getOrNull(pager.currentPage)?.planned?.exercise?.exercise?.id?.let { editingExercise = it } },
             )
             if (notificationsDenied) {
                 Surface(color = c.error.copy(alpha = 0.2f), onClick = { notificationsDenied = false }) {
@@ -149,6 +154,12 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                                 setNote = { vm.setNote(index, row, it) },
                                 confirm = { vm.confirm(index, row) },
                                 select = { vm.selectRow(index, row) },
+                                unconfirm = { vm.unconfirm(index, row) },
+                                weightStepR = { vm.changeWeight(index, row, it, right = true) },
+                                setWeightR = { vm.setWeight(index, row, it, right = true) },
+                                repsStepR = { vm.changeReps(index, row, it, right = true) },
+                                setRepsR = { vm.setReps(index, row, it, right = true) },
+                                setRirR = { vm.setRir(index, row, it, right = true) },
                             )
                         },
                         onApplySuggestion = { vm.applySuggestion(index) },
@@ -163,7 +174,7 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                 }
             }
         }
-        RestTimerBar(timerState, onAdd = { vm.addRestSeconds(15) }, onSkip = vm::skipRest,
+        RestTimerBar(timerState, onAdjust = vm::addRestSeconds, onSkip = vm::skipRest,
             modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().onSizeChanged { timerHeightPx = it.height })
     }
 
@@ -177,6 +188,25 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
             picker = null; vm.replaceExercise(pager.currentPage, id)
         }, onDismiss = { picker = null })
         null -> {}
+    }
+    editingExercise?.let { id ->
+        Dialog(
+            onDismissRequest = {
+                editingExercise = null
+                vm.refreshExercise(pager.currentPage)
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(Modifier.fillMaxSize(), color = c.background) {
+                ExerciseEditScreen(
+                    id,
+                    onBack = { editingExercise = null; vm.refreshExercise(pager.currentPage) },
+                    onHistory = {},
+                    showHistory = false,
+                    showDelete = false,
+                )
+            }
+        }
     }
     notesOpen?.let { notes ->
         AlertDialog(onDismissRequest = { notesOpen = null }, title = { Text("Note di esecuzione") }, text = { Text(notes) },

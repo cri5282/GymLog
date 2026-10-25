@@ -12,6 +12,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -69,6 +70,34 @@ class WorkoutRepositoryTest {
         assertEquals(3, p.target!!.sets)
     }
 
+    @Test fun plan_generatesWarmupsFromPreviousTopWorkingWeight() = runTest {
+        val settings = testSettings(tmp.root, backgroundScope)
+        settings.update { it.copy(autoWarmup = true) }
+        val r = WorkoutRepository(db, settings, clock = { 1_000_000L })
+        val first = r.startOrResume(pushA())
+        val incline = r.plan(first).first()
+        repeat(3) { i -> r.confirmSet(first, incline.exercise.exercise.id, 0, i, w(80.0, 8, 2), "") }
+        r.finish(first)
+
+        val second = r.startOrResume(pushA())
+        val p = r.plan(second).first()
+        assertEquals(listOf(32.5, 47.5, 65.0), p.prefill.take(3).map { it.weightKg })
+        assertEquals(listOf(8, 5, 3), p.prefill.take(3).map { it.reps })
+        assertTrue(p.prefill.take(3).all { it.type == SetType.WARMUP })
+        assertEquals(6, p.prefill.size)
+        assertTrue(p.prefill.drop(3).all { it.type == SetType.WORKING })
+    }
+
+    @Test fun plan_doesNotGenerateWarmupsWhenSettingIsOff() = runTest {
+        val r = repo()
+        val first = r.startOrResume(pushA())
+        val incline = r.plan(first).first()
+        repeat(3) { i -> r.confirmSet(first, incline.exercise.exercise.id, 0, i, w(80.0, 8, 2), "") }
+        r.finish(first)
+        val p = r.plan(r.startOrResume(pushA())).first()
+        assertTrue(p.prefill.all { it.type == SetType.WORKING })
+    }
+
     @Test fun plan_includesSetsAlreadyDoneAndExtraExercises() = runTest {
         val r = repo()
         val s = r.startOrResume(pushA())
@@ -104,6 +133,40 @@ class WorkoutRepositoryTest {
         assertEquals("Lateral Raise (Cable)", plan[5].exercise.exercise.name)
         assertEquals(1, plan[5].done.size)
         assertEquals(2, plan[5].target!!.sets)
+    }
+
+    @Test fun normalizeStaleStart_resetsOnlyAfterManyHoursAndKeepsSets() = runTest {
+        var now = 1_000_000L
+        val settings = testSettings(tmp.root, backgroundScope)
+        val r = WorkoutRepository(db, settings, clock = { now })
+        val session = r.startOrResume(null)
+        val exercise = db.exerciseDao().findByName("Shrug (Machine)")!!.id
+        r.confirmSet(session, exercise, 0, 0, w(60.0, 10, 1), "")
+        now += 60 * 60 * 1000L
+        r.normalizeStaleStart(session)
+        assertEquals(1_000_000L, r.getSession(session)!!.startedAt)
+
+        now += 6 * 60 * 60 * 1000L
+        r.normalizeStaleStart(session)
+        assertEquals(now, r.getSession(session)!!.startedAt)
+        assertEquals(1, db.workoutDao().getSets(session).size)
+    }
+
+    @Test fun closeOpenSession_empty_deletesInsteadOfLeavingGhostSession() = runTest {
+        val r = repo()
+        val s = r.startOrResume(null)
+        r.closeOpenSession(s)
+        assertNull(r.getSession(s))
+    }
+
+    @Test fun closeOpenSession_withSets_endsAtLastCompletedSet() = runTest {
+        val r = repo()
+        val s = r.startOrResume(null)
+        val ex = db.exerciseDao().findByName("Shrug (Machine)")!!.id
+        r.confirmSet(s, ex, 0, 0, w(60.0, 10, 1), "")
+        r.closeOpenSession(s)
+        assertEquals(1_000_000L, r.getSession(s)!!.endedAt)
+        assertEquals(1, db.workoutDao().getSets(s).size)
     }
 
     @Test fun bestWeight_ignoresWarmupAndUnfinished() = runTest {

@@ -115,7 +115,11 @@ fun DayEditScreen(dayId: Long, onBack: () -> Unit) {
                         ExerciseThumb(e.exercise)
                         Column(Modifier.weight(1f)) {
                             Text(e.exercise.exercise.name, style = MaterialTheme.typography.titleMedium, color = c.text)
-                            Text(e.routineExercise.targetLabel(), color = c.textSecondary)
+                            Text(
+                                e.routineExercise.targetLabel() +
+                                    (e.routineExercise.supersetGroup?.let { " · Superserie $it" } ?: ""),
+                                color = c.textSecondary,
+                            )
                         }
                         Column {
                             IconButton(onClick = { vm.move(e.routineExercise, true) }, enabled = i > 0) {
@@ -154,6 +158,7 @@ private fun TargetSheet(name: String, re: RoutineExercise, onSave: (RoutineExerc
     var rirMax by remember { mutableStateOf(re.targetRirMax.toString()) }
     var rest by remember { mutableStateOf(re.restSeconds.toString()) }
     var notes by remember { mutableStateOf(re.notes) }
+    var superset by remember { mutableStateOf(re.supersetGroup?.toString().orEmpty()) }
 
     val s = sets.toIntOrNull(); val a = repMin.toIntOrNull(); val b = repMax.toIntOrNull()
     val c = rirMin.toIntOrNull(); val d = rirMax.toIntOrNull(); val r = rest.toIntOrNull()
@@ -164,6 +169,7 @@ private fun TargetSheet(name: String, re: RoutineExercise, onSave: (RoutineExerc
         c == null || d == null || c !in 0..5 || d !in 0..5 -> "RIR: da 0 a 5"
         c > d -> "RIR minimo maggiore del massimo"
         r == null || r !in 0..900 -> "Recupero: da 0 a 900 secondi"
+        superset.isNotBlank() && superset.toIntOrNull() !in 1..99 -> "Superserie: da 1 a 99 (vuoto = nessuna)"
         else -> null
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -180,11 +186,12 @@ private fun TargetSheet(name: String, re: RoutineExercise, onSave: (RoutineExerc
                 NumberField("RIR max", rirMax, Modifier.weight(1f)) { rirMax = it }
             }
             NumberField("Recupero (secondi)", rest) { rest = it }
+            NumberField("Superserie (vuoto = nessuna)", superset) { superset = it }
             OutlinedTextField(notes, { notes = it }, label = { Text("Note") }, modifier = Modifier.fillMaxWidth())
             error?.let { Text(it, color = Gym.colors.error) }
             PrimaryButton("Salva", enabled = error == null, modifier = Modifier.fillMaxWidth(), onClick = {
                 onSave(re.copy(targetSets = s!!, repMin = a!!, repMax = b!!, targetRirMin = c!!, targetRirMax = d!!,
-                    restSeconds = r!!, notes = notes.trim()))
+                    restSeconds = r!!, notes = notes.trim(), supersetGroup = superset.trim().toIntOrNull()))
             })
             SecondaryButton("Rimuovi dalla scheda", onRemove, Modifier.fillMaxWidth(), Icons.Rounded.Delete)
             Spacer(Modifier.height(16.dp))

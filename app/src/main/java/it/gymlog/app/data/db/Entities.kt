@@ -1,5 +1,6 @@
 package it.gymlog.app.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -19,6 +20,8 @@ data class Exercise(
     val loadStepKg: Double? = null,
     val archived: Boolean = false,
     val needsReview: Boolean = false,
+    /** Esercizio unilaterale: peso, reps e RIR separati tra lato sinistro e destro. */
+    @ColumnInfo(defaultValue = "0") val single: Boolean = false,
 )
 
 @Entity(
@@ -84,6 +87,8 @@ data class RoutineExercise(
     val targetRirMax: Int = 2,
     val restSeconds: Int = 120,
     val notes: String = "",
+    /** Superserie: esercizi della stessa scheda con lo stesso numero (1, 2, …) si alternano. */
+    val supersetGroup: Int? = null,
 )
 
 @Entity(
@@ -123,4 +128,42 @@ data class SetEntry(
     val rir: Int? = null,
     val notes: String = "",
     val completedAt: Long,
+    /** Lato destro di una serie unilaterale (weightKg/reps/rir sono il sinistro); null = serie bilaterale. */
+    val weightKgR: Double? = null,
+    val repsR: Int? = null,
+    val rirR: Int? = null,
 )
+
+@Entity(
+    tableName = "BodyEntry",
+    indices = [Index(value = ["epochDay"], unique = true)],
+)
+data class BodyEntry(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Giorno della misurazione, come epoch day (LocalDate.toEpochDay). */
+    val epochDay: Long,
+    val weightKg: Double? = null,
+    val neckCm: Double? = null,
+    val chestCm: Double? = null,
+    val waistCm: Double? = null,
+    val hipsCm: Double? = null,
+    val armCm: Double? = null,
+    val thighCm: Double? = null,
+    val calfCm: Double? = null,
+    /** Pliche cutanee in mm (Jackson-Pollock 7). */
+    val skinChest: Double? = null,
+    val skinMidaxillary: Double? = null,
+    val skinTriceps: Double? = null,
+    val skinSubscapular: Double? = null,
+    val skinAbdomen: Double? = null,
+    val skinSuprailiac: Double? = null,
+    val skinThigh: Double? = null,
+    val notes: String = "",
+    val measuredAt: Long = 0,
+) {
+    /** Almeno un valore registrato: le voci sono tutte facoltative. */
+    val hasData: Boolean get() = listOf(
+        weightKg, neckCm, chestCm, waistCm, hipsCm, armCm, thighCm, calfCm,
+        skinChest, skinMidaxillary, skinTriceps, skinSubscapular, skinAbdomen, skinSuprailiac, skinThigh,
+    ).any { it != null }
+}

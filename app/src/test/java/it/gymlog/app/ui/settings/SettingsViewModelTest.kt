@@ -1,5 +1,8 @@
 package it.gymlog.app.ui.settings
 
+import androidx.test.core.app.ApplicationProvider
+import it.gymlog.app.data.backup.BackupExporter
+import it.gymlog.app.data.backup.WorkoutCsvExporter
 import it.gymlog.app.data.db.AppDatabase
 import it.gymlog.app.data.hevy.HevyImporter
 import it.gymlog.app.data.settings.Accent
@@ -38,19 +41,19 @@ class SettingsViewModelTest {
 
     @Test fun setAccent_persists() = runTest {
         val repo = testSettings(tmp.root, backgroundScope)
-        SettingsViewModel(repo, HevyImporter(db)).setAccent(Accent.PURPLE)
+        SettingsViewModel(repo, HevyImporter(db), BackupExporter(ApplicationProvider.getApplicationContext(), db), WorkoutCsvExporter(db)).setAccent(Accent.PURPLE)
         assertEquals(Accent.PURPLE, real { repo.settings.first { it.accent == Accent.PURPLE } }.accent)
     }
 
     @Test fun setThemeMode_persists() = runTest {
         val repo = testSettings(tmp.root, backgroundScope)
-        SettingsViewModel(repo, HevyImporter(db)).setThemeMode(ThemeMode.LIGHT)
+        SettingsViewModel(repo, HevyImporter(db), BackupExporter(ApplicationProvider.getApplicationContext(), db), WorkoutCsvExporter(db)).setThemeMode(ThemeMode.LIGHT)
         assertEquals(ThemeMode.LIGHT, real { repo.settings.first { it.themeMode == ThemeMode.LIGHT } }.themeMode)
     }
 
     @Test fun setKeepScreenOn_persists() = runTest {
         val repo = testSettings(tmp.root, backgroundScope)
-        SettingsViewModel(repo, HevyImporter(db)).setKeepScreenOn(false)
+        SettingsViewModel(repo, HevyImporter(db), BackupExporter(ApplicationProvider.getApplicationContext(), db), WorkoutCsvExporter(db)).setKeepScreenOn(false)
         assertEquals(false, real { repo.settings.first { !it.keepScreenOn } }.keepScreenOn)
     }
 }

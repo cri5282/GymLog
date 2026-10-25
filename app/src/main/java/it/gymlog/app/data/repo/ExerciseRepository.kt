@@ -20,6 +20,7 @@ data class ExerciseDraft(
     val notes: String,
     val hevyName: String?,
     val loadStepKg: Double?,
+    val single: Boolean = false,
 )
 
 enum class DeleteResult { DELETED, ARCHIVED }
@@ -62,6 +63,7 @@ class ExerciseRepository(private val db: AppDatabase, private val photos: PhotoS
             loadStepKg = draft.loadStepKg,
             archived = existing?.archived ?: false,
             needsReview = false,
+            single = draft.single,
         )
         val id = if (existing == null) dao.insert(exercise.copy(id = 0)) else { dao.update(exercise); draft.id }
         dao.replaceSecondary(id, draft.secondary.filter { it != draft.primary })

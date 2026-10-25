@@ -18,8 +18,14 @@ import it.gymlog.app.data.settings.ThemeMode
 import it.gymlog.app.ui.design.Gym
 import it.gymlog.app.ui.design.GymTheme
 import it.gymlog.app.ui.nav.AppNavHost
+import it.gymlog.app.widget.GymWidgetProvider
 
 class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        GymWidgetProvider.refresh(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as GymLogApp).container

@@ -13,10 +13,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.SelfImprovement
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -25,13 +28,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import it.gymlog.app.data.export.RoutineTextExporter
+import it.gymlog.app.ui.common.ConfirmDialog
 import it.gymlog.app.ui.common.TextInputDialog
 import it.gymlog.app.ui.common.WEEKDAYS
+import it.gymlog.app.GymLogApp
 import it.gymlog.app.ui.common.appViewModel
 import it.gymlog.app.ui.common.weekdayLabel
 import it.gymlog.app.ui.design.AccentPill
@@ -42,6 +52,7 @@ import it.gymlog.app.ui.design.GymType
 import it.gymlog.app.ui.design.IconBadge
 import it.gymlog.app.ui.design.ScreenHeader
 import it.gymlog.app.ui.design.SectionLabel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,9 +60,30 @@ fun PlanScreen(onOpenRoutine: (Long) -> Unit) {
     val vm = appViewModel { PlanViewModel(it.programs) }
     val s by vm.state.collectAsStateWithLifecycle()
     val c = Gym.colors
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val exporter = remember { RoutineTextExporter((context.applicationContext as GymLogApp).container.db) }
     var programsOpen by remember { mutableStateOf(false) }
     var assigning by remember { mutableStateOf<Int?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var pdfDay by remember { mutableStateOf<Long?>(null) }
+    val pdfExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        val dayId = pdfDay
+        if (uri != null && dayId != null) {
+            scope.launch {
+                val ok = runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { exporter.exportDayPdf(dayId, it) }
+                        ?: error("Impossibile scrivere il file.")
+                }.isSuccess
+                android.widget.Toast.makeText(
+                    context,
+                    if (ok) "PDF salvato" else "Esportazione non riuscita",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+        pdfDay = null
+    }
 
     LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
         item {
@@ -90,6 +122,25 @@ fun PlanScreen(onOpenRoutine: (Long) -> Unit) {
                     Column(Modifier.weight(1f)) {
                         Text(r.day.name, style = MaterialTheme.typography.titleMedium, color = c.text)
                         Text("${r.exerciseCount} esercizi · ${weekdayLabel(r.day.dayOfWeek)}", color = c.textSecondary)
+                    }
+                    IconButton(onClick = {
+                        scope.launch {
+                            val text = exporter.exportDayText(r.day.id)
+                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_SUBJECT, r.day.name)
+                                putExtra(android.content.Intent.EXTRA_TEXT, text)
+                            }
+                            context.startActivity(android.content.Intent.createChooser(intent, "Condividi scheda"))
+                        }
+                    }) {
+                        Icon(Icons.Rounded.Share, "Condividi scheda come testo", tint = c.textSecondary)
+                    }
+                    IconButton(onClick = {
+                        pdfDay = r.day.id
+                        pdfExport.launch("${r.day.name}.pdf")
+                    }) {
+                        Icon(Icons.Rounded.PictureAsPdf, "Esporta scheda in PDF", tint = c.textSecondary)
                     }
                     Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.textSecondary)
                 }

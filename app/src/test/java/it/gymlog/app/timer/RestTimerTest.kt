@@ -44,6 +44,22 @@ class RestTimerTest {
         assertNull(timer.state.value.endAtMillis)
     }
 
+    @Test fun subtractSeconds_shortensAndMayFinishTimer() {
+        timer.start(60)
+        timer.addSeconds(-15)
+        assertEquals(45, timer.state.value.remainingSeconds(now))
+        timer.addSeconds(-60)
+        assertNull(timer.state.value.endAtMillis)
+    }
+
+    @Test fun subtractSeconds_afterEnd_doesNothing() {
+        timer.start(30)
+        now = 31_000
+        timer.addSeconds(-15)
+        assertEquals(0, timer.state.value.remainingSeconds(now))
+        assertEquals(30_000L, timer.state.value.endAtMillis)
+    }
+
     @Test fun skip_clearsState() {
         timer.start(120)
         timer.skip()

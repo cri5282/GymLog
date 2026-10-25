@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
+import androidx.compose.material.icons.rounded.Accessibility
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.FitnessCenter
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import it.gymlog.app.ui.design.Gym
 
@@ -39,10 +41,11 @@ data class NavItem(val route: String, val label: String, val icon: ImageVector)
 val leftItems = listOf(NavItem(Routes.HOME, "Home", Icons.Rounded.Home), NavItem(Routes.PLAN, "Piano", Icons.Rounded.CalendarMonth))
 val rightItems = listOf(
     NavItem(Routes.STATS, "Statistiche", Icons.Rounded.BarChart),
+    NavItem(Routes.BODY, "Corpo", Icons.Rounded.Accessibility),
     NavItem(Routes.EXERCISES, "Esercizi", Icons.AutoMirrored.Rounded.FormatListBulleted),
 )
 
-/** Barra inferiore: due voci, pulsante Start centrale in rilievo, due voci. */
+/** Barra inferiore: due voci a sinistra, Start centrale, tre voci a destra. */
 @Composable
 fun BottomBar(current: String?, resuming: Boolean, onNavigate: (String) -> Unit, onStart: () -> Unit) {
     val c = Gym.colors
@@ -80,6 +83,7 @@ private fun androidx.compose.foundation.layout.RowScope.NavCell(item: NavItem, s
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Icon(item.icon, null, tint = color)
-        Text(item.label, color = color, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        Text(item.label, color = color, style = MaterialTheme.typography.labelSmall,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
     }
 }

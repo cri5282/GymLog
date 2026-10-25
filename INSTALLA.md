@@ -2,7 +2,7 @@
 
 ## 1. Copiare l'APK sul telefono
 
-Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.1.0.apk`. Scegli uno di questi modi:
+Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.3.0.apk`. Scegli uno di questi modi:
 
 - **Cavo USB:** collega il telefono, sul telefono scegli "Trasferimento file", copia l'APK nella cartella *Download*.
 - **Google Drive:** carica l'APK su Drive dal PC e scaricalo dal telefono con l'app Drive.
@@ -31,24 +31,36 @@ Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.1.0.apk`. Scegli uno d
 ## 4. Aggiornamenti futuri
 
 - Installa il nuovo APK **sopra** quello vecchio: i dati restano.
-- **Non disinstallare mai l'app**: disinstallando si cancellano tutti i dati
-  (finché non arriva l'esportazione/backup, prevista più avanti).
+- **Non disinstallare mai l'app** senza aver prima fatto un backup: disinstallando si cancellano
+  database, foto e impostazioni.
+- Da **Impostazioni → Backup** puoi esportare tutto in uno zip e ripristinarlo in seguito.
+  È disponibile anche il backup automatico settimanale in una cartella scelta.
 
-## Aggiornare alla 1.1.0 (nuova grafica)
+## Aggiornare alla 1.3.0 (backup, corpo e nuove statistiche)
 
-Installa `GymLog-1.1.0.apk` **sopra** la 1.0.0, senza disinstallare: allenamenti, schede, foto e
-impostazioni restano. Al primo avvio l'app è in tema scuro con accento verde; tema e colore si
-cambiano da Home → ⚙ → Aspetto.
+Installa `GymLog-1.3.0.apk` **sopra** la versione precedente, senza disinstallare: allenamenti,
+schede, foto e impostazioni restano. Al primo avvio viene applicata automaticamente la migrazione
+del database.
 
-Checklist della nuova grafica:
-- [ ] Tema scuro di default; cambiando colore d'accento cambiano pulsanti, pillole e timer.
-- [ ] Il pulsante centrale **Start** avvia la scheda di oggi; con un allenamento in corso diventa **Riprendi** (arancione).
-- [ ] In Home la settimana mostra i pallini sui giorni allenati e la scheda del giorno toccato.
-- [ ] Nel Piano, toccando un giorno puoi assegnargli una scheda o il riposo.
-- [ ] In allenamento la serie da fare è espansa (kg, reps, RIR); toccando ✓ si passa alla successiva.
-- [ ] Il timer fluttuante non copre l'ultima serie e "+15 s" allunga il recupero.
-- [ ] Lo schermo resta acceso durante l'allenamento (disattivabile nelle Impostazioni).
-- [ ] Statistiche mostra i riquadri e la mappa di attività degli ultimi 12 mesi.
+Checklist delle novità:
+- [ ] **Backup completo** in *Impostazioni*: database, foto e impostazioni in un unico zip.
+      Puoi anche scegliere una cartella per il backup automatico settimanale.
+- [ ] **Ripristino** da zip: chiede conferma e riavvia l'app. Prima di sostituire i file viene
+      salvata una copia di sicurezza del database.
+- [ ] **Esportazione CSV** di tutte le serie e **PDF/testo della scheda** dal Piano.
+- [ ] **Serie di riscaldamento automatiche** (40% × 8, 60% × 5, 80% × 3) calcolate dall'ultima
+      volta e messe all'inizio dell'esercizio. Si disattivano da *Impostazioni → Allenamento*.
+- [ ] **Esercizi unilaterali**: kg, reps e RIR separati per lato sinistro e destro.
+- [ ] **Superserie**: assegna lo stesso numero a più esercizi della scheda; il recupero parte
+      solo dopo l'ultimo esercizio del gruppo.
+- [ ] **Sezione Corpo** (facoltativa): peso, circonferenze, pliche, grasso corporeo stimato e FFMI.
+      Altezza, anno di nascita e sesso si impostano in *Impostazioni → Corpo*.
+- [ ] **Statistiche**: grafici di carico, 1RM e volume per esercizio, record recenti e divario
+      sinistro/destro.
+- [ ] **Icona dell'app** selezionabile (classica, scura, accento) e **widget** della home.
+- [ ] Un allenamento rimasto aperto da molte ore può essere ripreso senza falsare la durata,
+      oppure chiuso; se non ha serie viene eliminato.
+- [ ] Toccando ✓ su una serie già salvata la si può annullare e correggere.
 
 ## 5. Backup della chiave di firma (importante)
 
@@ -65,11 +77,15 @@ nuova versione dovrai disinstallare l'app e perderai i dati.
 
 - [ ] L'app si installa e si apre, con la scheda di oggi in *Oggi*.
 - [ ] L'import del CSV di Hevy riporta circa 24 allenamenti.
-- [ ] In un allenamento (es. Push A) i carichi sono precompilati dall'ultima sessione.
+- [ ] In un allenamento (es. Push A) i carichi sono precompilati dall'ultima sessione e compaiono
+      le serie di riscaldamento (se attive).
 - [ ] Toccando ✓ parte il recupero; a schermo bloccato arrivano notifica e vibrazione a fine recupero.
 - [ ] Chiudendo l'app a metà allenamento (anche dal multitasking), riaprendola compare "Riprendi"
       con le serie già confermate.
 - [ ] Una foto scattata a un macchinario compare durante l'allenamento.
+- [ ] Da *Impostazioni → Esporta backup* si crea uno zip; *Ripristina da backup* lo riporta indietro.
+- [ ] Nella sezione *Corpo* una misurazione con peso e pliche mostra grasso stimato e FFMI.
+- [ ] Il widget della home mostra l'allenamento in corso o la scheda di oggi.
 
 ## Per ricompilare (sul PC)
 

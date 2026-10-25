@@ -34,6 +34,7 @@ data class ExerciseForm(
     val notes: String = "",
     val hevyName: String = "",
     val loadStep: String = "",
+    val single: Boolean = false,
     val nameError: String? = null,
     val hevyNameError: String? = null,
     val used: Boolean = false,
@@ -70,6 +71,7 @@ class ExerciseEditViewModel(
                     notes = e.exercise.executionNotes,
                     hevyName = e.exercise.hevyName.orEmpty(),
                     loadStep = e.exercise.loadStepKg?.let { kg -> formatKg(kg) }.orEmpty(),
+                    single = e.exercise.single,
                 )
             }
         }
@@ -108,6 +110,7 @@ class ExerciseEditViewModel(
                     id = _id.value, name = f.name, primary = f.primary, secondary = f.secondary.toList(),
                     bias = f.bias, notes = f.notes, hevyName = f.hevyName,
                     loadStepKg = parseDecimal(f.loadStep)?.takeIf { it > 0 },
+                    single = f.single,
                 )
             )
             _newPhotos.value.forEach { repo.addPhoto(saved, it) }

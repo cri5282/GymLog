@@ -26,9 +26,18 @@ class RestTimerImpl(
         val s = _state.value
         val end = s.endAtMillis ?: return
         val now = clock()
-        _state.value = if (end <= now) TimerState(now + seconds * 1000L, seconds)
-        else TimerState(end + seconds * 1000L, s.totalSeconds + seconds)
-        onActive()
+        if (seconds < 0) {
+            if (end <= now) return
+            val adjustedEnd = end + seconds * 1000L
+            if (adjustedEnd <= now) { skip(); return }
+            val remaining = ((adjustedEnd - now + 999) / 1000).toInt()
+            _state.value = TimerState(adjustedEnd, maxOf(remaining, s.totalSeconds + seconds))
+            onActive()
+        } else {
+            _state.value = if (end <= now) TimerState(now + seconds * 1000L, seconds)
+            else TimerState(end + seconds * 1000L, maxOf(0, s.totalSeconds + seconds))
+            onActive()
+        }
     }
 
     override fun skip() {

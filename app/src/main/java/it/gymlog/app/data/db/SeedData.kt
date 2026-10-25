@@ -125,7 +125,8 @@ object SeedData {
         val ids = exercises.associate { e ->
             val id = exDao.insert(
                 Exercise(name = e.name, primaryMuscle = e.primary, lengthBias = e.bias,
-                    executionNotes = e.notes, hevyName = e.name)
+                    executionNotes = e.notes, hevyName = e.name,
+                    single = e.name in AppDatabase.SEEDED_SINGLE)
             )
             exDao.replaceSecondary(id, e.secondary)
             e.name to id

@@ -1,5 +1,6 @@
 package it.gymlog.app.ui.settings
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -23,7 +24,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.TableChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -36,7 +41,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,26 +55,50 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.gymlog.app.data.settings.Accent
+import it.gymlog.app.data.settings.AppIcon
 import it.gymlog.app.data.settings.OneRmFormula
+import it.gymlog.app.data.settings.Sex
 import it.gymlog.app.data.settings.ThemeMode
+import it.gymlog.app.ui.common.ConfirmDialog
 import it.gymlog.app.ui.common.appViewModel
+import it.gymlog.app.ui.common.formatDate
 import it.gymlog.app.ui.common.formatKg
 import it.gymlog.app.ui.common.parseDecimal
 import it.gymlog.app.ui.design.Gym
 import it.gymlog.app.ui.design.GymCard
+import it.gymlog.app.ui.design.GymChip
 import it.gymlog.app.ui.design.PrimaryButton
 import it.gymlog.app.ui.design.ScreenHeader
+import it.gymlog.app.ui.design.SecondaryButton
 import it.gymlog.app.ui.design.SectionLabel
+import java.time.LocalDate
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    val vm = appViewModel { SettingsViewModel(it.settings, it.hevyImporter) }
+    val vm = appViewModel { SettingsViewModel(it.settings, it.hevyImporter, it.backup, it.csv) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     val importState by vm.import.collectAsStateWithLifecycle()
+    val backupMessage by vm.backupMessage.collectAsStateWithLifecycle()
+    val restartNeeded by vm.restartNeeded.collectAsStateWithLifecycle()
+    val busy by vm.busy.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val c = Gym.colors
+    var confirmRestore by remember { mutableStateOf<Uri?>(null) }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.importHevy(uri, context.contentResolver)
+    }
+    val backupPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) vm.exportBackup(uri, context.contentResolver)
+    }
+    val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) confirmRestore = uri
+    }
+    val csvPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) vm.exportCsv(uri, context.contentResolver)
+    }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) vm.setBackupFolder(uri, context.contentResolver)
     }
 
     Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -106,12 +134,18 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 }
                 Text(settings.accent.label, color = c.textSecondary)
+                HorizontalDivider(color = c.border.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+                Text("Icona dell'app", color = c.textSecondary)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppIcon.entries.forEach { icon ->
+                        GymChip(icon.label, selected = settings.appIcon == icon, onClick = { vm.setAppIcon(icon, context) })
+                    }
+                }
             }
 
             SectionLabel("Allenamento")
             GymCard {
-                var stepText by remember { mutableStateOf("") }
-                LaunchedEffect(settings.defaultLoadStepKg) { stepText = formatKg(settings.defaultLoadStepKg) }
+                var stepText by remember(settings.defaultLoadStepKg) { mutableStateOf(formatKg(settings.defaultLoadStepKg)) }
                 OutlinedTextField(
                     value = stepText,
                     onValueChange = { text -> stepText = text; parseDecimal(text)?.takeIf { it in 0.25..20.0 }?.let(vm::setStep) },
@@ -123,11 +157,32 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("Formula del 1RM stimato", color = c.textSecondary, modifier = Modifier.padding(top = 8.dp))
                 Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OneRmFormula.entries.forEach { f ->
-                        it.gymlog.app.ui.design.GymChip(f.label, selected = settings.oneRmFormula == f, onClick = { vm.setFormula(f) })
+                        GymChip(f.label, selected = settings.oneRmFormula == f, onClick = { vm.setFormula(f) })
                     }
                 }
                 HorizontalDivider(color = c.border.copy(alpha = 0.5f))
                 SwitchRow("Schermo sempre acceso durante l'allenamento", settings.keepScreenOn, vm::setKeepScreenOn)
+                HorizontalDivider(color = c.border.copy(alpha = 0.5f))
+                SwitchRow("Serie di riscaldamento automatiche", settings.autoWarmup, vm::setAutoWarmup)
+                Text("Calcolate al 40%, 60% e 80% del carico dell'ultima volta e messe all'inizio di ogni allenamento.",
+                    color = c.textSecondary)
+            }
+
+            SectionLabel("Corpo (facoltativo)")
+            GymCard {
+                Text("Serve solo per stimare grasso corporeo e FFMI nella sezione Corpo.", color = c.textSecondary)
+                Text("Sesso", color = c.textSecondary, modifier = Modifier.padding(top = 10.dp))
+                Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Sex.entries.forEach { s -> GymChip(s.label, selected = settings.sex == s, onClick = { vm.setSex(s) }) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberSetting("Altezza (cm)", settings.heightCm?.let(::formatKg).orEmpty(), Modifier.weight(1f), KeyboardType.Decimal) {
+                        vm.setHeight(parseDecimal(it))
+                    }
+                    NumberSetting("Anno di nascita", settings.birthYear?.toString().orEmpty(), Modifier.weight(1f), KeyboardType.Number) {
+                        vm.setBirthYear(it.trim().toIntOrNull())
+                    }
+                }
             }
 
             SectionLabel("Timer di recupero")
@@ -153,8 +208,76 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }, Modifier.fillMaxWidth(), Icons.Rounded.FileUpload)
                 }
             }
+
+            GymCard {
+                Text(
+                    "Backup completo: database, foto e impostazioni in un unico zip. Conservalo fuori dal telefono.",
+                    color = c.textSecondary,
+                )
+                Spacer(Modifier.height(12.dp))
+                PrimaryButton("Esporta backup", {
+                    backupPicker.launch("gymlog-backup-${LocalDate.now()}.zip")
+                }, Modifier.fillMaxWidth(), Icons.Rounded.FileDownload)
+                Spacer(Modifier.height(10.dp))
+                SecondaryButton("Ripristina da backup", {
+                    restorePicker.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                }, Modifier.fillMaxWidth(), Icons.Rounded.Restore)
+                HorizontalDivider(color = c.border.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 16.dp))
+                SwitchRow("Backup automatico settimanale", settings.autoBackup, vm::setAutoBackup)
+                SecondaryButton(
+                    if (settings.backupTreeUri == null) "Scegli cartella dei backup" else "Cambia cartella dei backup",
+                    { folderPicker.launch(null) }, Modifier.fillMaxWidth(), Icons.Rounded.Folder,
+                )
+                if (settings.backupTreeUri != null) {
+                    Spacer(Modifier.height(10.dp))
+                    SecondaryButton("Backup adesso", { vm.backupNow(context.contentResolver) },
+                        Modifier.fillMaxWidth(), Icons.Rounded.FileDownload)
+                }
+                if (settings.lastBackupAt > 0) {
+                    Text("Ultimo backup: ${formatDate(settings.lastBackupAt)}", color = c.textSecondary,
+                        modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+
+            GymCard {
+                Text("Esporta tutte le serie in CSV per analizzarle con un foglio di calcolo.", color = c.textSecondary)
+                Spacer(Modifier.height(12.dp))
+                SecondaryButton("Esporta CSV allenamenti", {
+                    csvPicker.launch("gymlog-allenamenti-${LocalDate.now()}.csv")
+                }, Modifier.fillMaxWidth(), Icons.Rounded.TableChart)
+            }
+
+            if (busy) {
+                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = c.accent)
+                }
+            }
             Spacer(Modifier.height(32.dp))
         }
+    }
+
+    confirmRestore?.let { uri ->
+        ConfirmDialog(
+            "Ripristinare il backup?",
+            "Allenamenti, esercizi, foto e impostazioni attuali verranno sostituiti con quelli del file. L'app si riavvierà.",
+            "Ripristina",
+            onConfirm = { confirmRestore = null; vm.restoreBackup(uri, context.contentResolver) },
+            onDismiss = { confirmRestore = null },
+        )
+    }
+
+    backupMessage?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { if (!restartNeeded) vm.dismissBackup() },
+            confirmButton = {
+                TextButton(onClick = { if (restartNeeded) vm.restartApp() else vm.dismissBackup() }) {
+                    Text(if (restartNeeded) "Riavvia ora" else "OK")
+                }
+            },
+            title = { Text("Backup") },
+            text = { Text(msg) },
+            containerColor = c.card,
+        )
     }
 
     when (val s = importState) {
@@ -182,6 +305,21 @@ fun SettingsScreen(onBack: () -> Unit) {
         )
         else -> {}
     }
+}
+
+@Composable
+private fun NumberSetting(
+    label: String, value: String, modifier: Modifier = Modifier, type: KeyboardType = KeyboardType.Number,
+    onChange: (String) -> Unit,
+) {
+    var text by remember(value) { mutableStateOf(value) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it; onChange(it) },
+        label = { Text(label) },
+        keyboardOptions = KeyboardOptions(keyboardType = type),
+        singleLine = true, shape = RoundedCornerShape(14.dp), modifier = modifier,
+    )
 }
 
 @Composable

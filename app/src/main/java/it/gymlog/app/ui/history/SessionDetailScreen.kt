@@ -1,6 +1,8 @@
 package it.gymlog.app.ui.history
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -56,10 +58,16 @@ import it.gymlog.app.ui.common.formatTime
 import it.gymlog.app.ui.common.parseDecimal
 import it.gymlog.app.ui.exercises.EnumDropdown
 
-/** "80×8 @2" (+ tipo se non allenante). */
+/** "80×8 @2" (+ tipo se non allenante); per le serie unilaterali "SX 20×10 @2 · DX 22×9 @1". */
 fun SetEntry.label(): String = buildString {
+    val split = weightKgR != null
+    if (split) append("SX ")
     append("${formatKg(weightKg)}×$reps")
     rir?.let { append(" @$it") }
+    if (split) {
+        append(" · DX ${formatKg(weightKgR!!)}×${repsR ?: reps}")
+        rirR?.let { append(" @$it") }
+    }
     if (setType != SetType.WORKING) append(" (${setType.label.lowercase()})")
 }
 
@@ -121,25 +129,42 @@ private fun EditSetDialog(set: SetEntry, onSave: (SetEntry) -> Unit, onDelete: (
     var kg by remember { mutableStateOf(formatKg(set.weightKg)) }
     var reps by remember { mutableStateOf(set.reps.toString()) }
     var rir by remember { mutableStateOf(set.rir?.toString().orEmpty()) }
+    val split = set.weightKgR != null
+    var kgR by remember { mutableStateOf(set.weightKgR?.let { formatKg(it) }.orEmpty()) }
+    var repsR by remember { mutableStateOf((set.repsR ?: set.reps).toString()) }
+    var rirR by remember { mutableStateOf(set.rirR?.toString().orEmpty()) }
     var type by remember { mutableStateOf(set.setType) }
     var notes by remember { mutableStateOf(set.notes) }
     var confirmDelete by remember { mutableStateOf(false) }
     val kgValue = parseDecimal(kg)?.takeIf { it >= 0 }
     val repsValue = reps.toIntOrNull()?.takeIf { it in 0..100 }
     val rirValue = if (rir.isBlank()) null else rir.toIntOrNull()?.takeIf { it in 0..5 }
-    val valid = kgValue != null && repsValue != null && (rir.isBlank() || rirValue != null)
+    val kgRValue = parseDecimal(kgR)?.takeIf { it >= 0 }
+    val repsRValue = repsR.toIntOrNull()?.takeIf { it in 0..100 }
+    val rirRValue = if (rirR.isBlank()) null else rirR.toIntOrNull()?.takeIf { it in 0..5 }
+    val valid = kgValue != null && repsValue != null && (rir.isBlank() || rirValue != null) &&
+        (!split || (kgRValue != null && repsRValue != null && (rirR.isBlank() || rirRValue != null)))
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Modifica serie") },
         text = {
-            Column {
-                OutlinedTextField(kg, { kg = it }, label = { Text("kg") }, singleLine = true,
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                val side = if (split) " (SX)" else ""
+                OutlinedTextField(kg, { kg = it }, label = { Text("kg$side") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                OutlinedTextField(reps, { reps = it }, label = { Text("Ripetizioni") }, singleLine = true,
+                OutlinedTextField(reps, { reps = it }, label = { Text("Ripetizioni$side") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(rir, { rir = it }, label = { Text("RIR (0-5, vuoto = non registrato)") }, singleLine = true,
+                OutlinedTextField(rir, { rir = it }, label = { Text("RIR$side (0-5, vuoto = non registrato)") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                if (split) {
+                    OutlinedTextField(kgR, { kgR = it }, label = { Text("kg (DX)") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                    OutlinedTextField(repsR, { repsR = it }, label = { Text("Ripetizioni (DX)") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(rirR, { rirR = it }, label = { Text("RIR (DX)") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
                 EnumDropdown("Tipo", type, SetType.entries, { it.label }) { type = it }
                 OutlinedTextField(notes, { notes = it }, label = { Text("Note") }, singleLine = true)
                 Row { TextButton(onClick = { confirmDelete = true }) { Text("Elimina serie", color = MaterialTheme.colorScheme.error) } }
@@ -147,7 +172,14 @@ private fun EditSetDialog(set: SetEntry, onSave: (SetEntry) -> Unit, onDelete: (
         },
         confirmButton = {
             TextButton(enabled = valid, onClick = {
-                onSave(set.copy(weightKg = kgValue!!, reps = repsValue!!, rir = rirValue, setType = type, notes = notes.trim()))
+                onSave(
+                    set.copy(
+                        weightKg = kgValue!!, reps = repsValue!!, rir = rirValue, setType = type, notes = notes.trim(),
+                        weightKgR = if (split) kgRValue else set.weightKgR,
+                        repsR = if (split) repsRValue else set.repsR,
+                        rirR = if (split) rirRValue else set.rirR,
+                    ),
+                )
             }) { Text("Salva") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },

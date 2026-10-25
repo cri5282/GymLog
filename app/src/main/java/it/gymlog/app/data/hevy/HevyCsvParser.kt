@@ -96,7 +96,7 @@ object HevyCsvParser {
 
     /** CSV RFC 4180: restituisce (campi, numero di riga del file in cui inizia il record). */
     private fun readCsv(input: Reader): List<Pair<List<String>, Int>> {
-        val text = input.readText().removePrefix("﻿")
+        val text = input.readText().removePrefix("\uFEFF")
         val records = mutableListOf<Pair<List<String>, Int>>()
         var fields = mutableListOf<String>()
         val field = StringBuilder()

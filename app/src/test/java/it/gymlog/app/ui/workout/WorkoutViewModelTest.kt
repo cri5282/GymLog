@@ -238,4 +238,81 @@ class WorkoutViewModelTest {
         vm.finish()
         assertEquals(listOf("Incline Chest Press (Machine)"), vm.await { it.recap != null }.records)
     }
+
+    // --- Esercizi unilaterali ---
+
+    private suspend fun makeFirstExerciseSingle(): Long {
+        val ex = db.exerciseDao().findByName("Incline Chest Press (Machine)")!!
+        db.exerciseDao().update(ex.copy(single = true))
+        return ex.id
+    }
+
+    @Test fun single_rowsStartWithRightSideCopiedFromLeft() = runTest {
+        val e = env()
+        makeFirstExerciseSingle()
+        val page = vm(e).await { true }.pages[0]
+        assertTrue(page.single)
+        assertTrue(page.rows.all { it.weightKgR != null && it.repsR != null })
+    }
+
+    @Test fun single_confirmSavesBothSidesIndependently() = runTest {
+        val e = env()
+        makeFirstExerciseSingle()
+        val vm = vm(e)
+        vm.await { true }
+        vm.setWeight(0, 0, 20.0); vm.setWeight(0, 0, 22.0, right = true)
+        vm.setReps(0, 0, 10); vm.setReps(0, 0, 9, right = true)
+        vm.setRir(0, 0, 2); vm.setRir(0, 0, 1, right = true)
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        val s = db.workoutDao().getSets(e.session).single()
+        assertEquals(20.0, s.weightKg, 1e-9); assertEquals(22.0, s.weightKgR!!, 1e-9)
+        assertEquals(10, s.reps); assertEquals(9, s.repsR)
+        assertEquals(2, s.rir); assertEquals(1, s.rirR)
+    }
+
+    @Test fun single_editingRightAfterConfirm_persistsWithoutTouchingLeft() = runTest {
+        val e = env()
+        makeFirstExerciseSingle()
+        val vm = vm(e)
+        vm.await { true }
+        vm.setWeight(0, 0, 20.0); vm.setReps(0, 0, 10); vm.setReps(0, 0, 10, right = true)
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        vm.setWeight(0, 0, 25.0, right = true)
+        vm.changeReps(0, 0, -1, right = true)
+        val s = db.workoutDao().getSets(e.session).single()
+        assertEquals(20.0, s.weightKg, 1e-9); assertEquals(10, s.reps)
+        assertEquals(25.0, s.weightKgR!!, 1e-9); assertEquals(9, s.repsR)
+    }
+
+    @Test fun bilateral_confirmLeavesRightSideNull() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.setWeight(0, 0, 60.0); vm.setReps(0, 0, 8)
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        val s = db.workoutDao().getSets(e.session).single()
+        assertEquals(null, s.weightKgR); assertEquals(null, s.repsR); assertEquals(null, s.rirR)
+    }
+
+    @Test fun single_addSetAndSuggestionCoverBothSides() = runTest {
+        val e = env()
+        val ex = makeFirstExerciseSingle()
+        // sessione precedente conclusa: 3 serie, sinistro 20 kg e destro 22 kg al massimo delle reps con RIR basso
+        repeat(3) {
+            e.workouts.confirmSet(e.session, ex, 0, it, SetDraft(20.0, 8, 2, SetType.WORKING, 22.0, 8, 1), "")
+        }
+        e.workouts.finish(e.session)
+        val vm = WorkoutViewModel(nextPushA(e), e.workouts, e.settings, timer, exercises())
+        val page = vm.await { true }.pages[0]
+        assertEquals(22.0, page.rows[0].weightKgR!!, 1e-9)
+        assertEquals(22.5, page.planned.suggestedKg!!, 1e-9) // min(20, 22) + passo 2,5
+        vm.applySuggestion(0)
+        vm.addSet(0)
+        val rows = vm.await { it.pages[0].rows.size == 4 }.pages[0].rows
+        assertTrue(rows.all { it.weightKg == 22.5 && it.weightKgR == 22.5 || it === rows[3] })
+        assertTrue(rows[3].weightKgR != null)
+    }
 }

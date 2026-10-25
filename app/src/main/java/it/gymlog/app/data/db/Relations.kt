@@ -48,4 +48,37 @@ data class SessionTime(
     val source: SessionSource = SessionSource.MANUAL,
 )
 
+/** Una serie conclusa con i dati che servono ai grafici. */
+data class StatSet(
+    val setId: Long,
+    val exerciseId: Long,
+    val exerciseName: String,
+    val muscle: Muscle,
+    val single: Boolean,
+    val startedAt: Long,
+    val setType: SetType,
+    val weightKg: Double,
+    val weightKgR: Double?,
+    val reps: Int,
+    val repsR: Int?,
+)
+
+/** Riga piatta per l'esportazione CSV. */
+data class CsvRow(
+    val sessionId: Long,
+    val title: String,
+    val startedAt: Long,
+    val endedAt: Long?,
+    val exerciseName: String,
+    val setIndex: Int,
+    val setType: SetType,
+    val weightKg: Double,
+    val weightKgR: Double?,
+    val reps: Int,
+    val repsR: Int?,
+    val rir: Int?,
+    val rirR: Int?,
+    val notes: String,
+)
+
 data class DayExerciseCount(val routineDayId: Long, val count: Int)

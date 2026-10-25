@@ -46,6 +46,9 @@ fun Target.label(rest: Int): String {
 /** "80 kg × 8, 8, 7" (stesso carico) oppure "80×8, 82,5×7". */
 fun lastTimeLabel(sets: List<SetDraft>): String {
     if (sets.isEmpty()) return "Nessuno storico"
+    if (sets.any { it.split }) {
+        return sets.joinToString { "SX ${formatKg(it.weightKg)}×${it.reps} · DX ${formatKg(it.weightKgR ?: it.weightKg)}×${it.repsR ?: it.reps}" }
+    }
     val loads = sets.map { it.weightKg }.distinct()
     return if (loads.size == 1) "${formatKg(loads[0])} kg × " + sets.joinToString { "${it.reps}" }
     else sets.joinToString { "${formatKg(it.weightKg)}×${it.reps}" }
@@ -85,6 +88,7 @@ fun ExercisePage(
                 modifier = Modifier.padding(vertical = 6.dp)) {
                 GymChip(e.primaryMuscle.label)
                 if (e.lengthBias != LengthBias.NONE) GymChip(e.lengthBias.label)
+                p.supersetGroup?.let { GymChip("Superserie $it") }
                 p.bestKg?.takeIf { it > 0 }?.let { GymChip("Record: ${formatKg(it)} kg") }
             }
             Text(p.target?.label(p.restSeconds) ?: "Aggiunto oggi · recupero ${formatRest(p.restSeconds)}",
@@ -97,7 +101,7 @@ fun ExercisePage(
                     onClick = onApplySuggestion, modifier = Modifier.fillMaxWidth())
             }
         }
-        item { SetTable(page.rows, active, rowActions, onAddSet) }
+        item { SetTable(page.rows, active, rowActions, onAddSet, single = page.single) }
     }
 }
 

@@ -110,4 +110,16 @@ class DaoTest {
         assertEquals("Panca", db.exerciseDao().findByHevyName("Bench Press (Machine)")?.name)
         assertNull(db.exerciseDao().findByHevyName("Bench Press"))
     }
+
+    @Test
+    fun bestWeight_includesRightSideOfUnilateralSets() = runTest {
+        val ex = newExercise("Curl concentrato")
+        val s = finishedSession(2000)
+        val dao = db.workoutDao()
+        dao.insertSet(SetEntry(sessionId = s, exerciseId = ex, exerciseOrder = 0, setIndex = 0, setType = SetType.WORKING,
+            weightKg = 20.0, reps = 10, completedAt = 2000, weightKgR = 24.0, repsR = 9))
+        dao.insertSet(SetEntry(sessionId = s, exerciseId = ex, exerciseOrder = 0, setIndex = 1, setType = SetType.WORKING,
+            weightKg = 22.0, reps = 8, completedAt = 2001))
+        assertEquals(24.0, dao.bestWeight(ex)!!, 1e-9)
+    }
 }

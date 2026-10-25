@@ -48,6 +48,8 @@ data class HistoryDay(val session: WorkoutSession, val sets: List<SetEntry>)
 class ExerciseHistoryViewModel(exerciseId: Long, workouts: WorkoutRepository, exercises: ExerciseRepository) : ViewModel() {
     val name: StateFlow<String> = exercises.observe(exerciseId).map { it?.exercise?.name.orEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+    val single: StateFlow<Boolean> = exercises.observe(exerciseId).map { it?.exercise?.single == true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val days: StateFlow<List<HistoryDay>> = workouts.historyFor(exerciseId).map { rows: List<SetWithSession> ->
         rows.groupBy { it.session.id }.values.map { g -> HistoryDay(g.first().session, g.map { it.set }) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

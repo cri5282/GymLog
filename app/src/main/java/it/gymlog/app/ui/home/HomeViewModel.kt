@@ -38,6 +38,8 @@ data class HomeState(
     /** Allenamento concluso nel giorno selezionato (il più recente). */
     val selectedSession: SessionTime? = null,
     val unfinished: WorkoutSession? = null,
+    /** Allenamento rimasto aperto da un giorno precedente. */
+    val stale: Boolean = false,
     val streak: Int = 0,
     val thisWeekDone: Int = 0,
     val plannedPerWeek: Int = 0,
@@ -90,6 +92,7 @@ class HomeViewModel(
             selectedExerciseCount = routine?.let { programs.getDayExercises(it.id).size } ?: 0,
             selectedSession = i.sessions.firstOrNull { localDate(it.startedAt, zone) == i.selected },
             unfinished = i.unfinished,
+            stale = i.unfinished != null && localDate(i.unfinished.startedAt, zone).isBefore(now),
             streak = weekStreak(dates, now),
             thisWeekDone = i.sessions.count { !localDate(it.startedAt, zone).isBefore(currentWeek) },
             plannedPerWeek = planned.size,
@@ -120,5 +123,11 @@ class HomeViewModel(
         viewModelScope.launch {
             try { open(workouts.startOrResume(dayId)) } finally { starting = false }
         }
+    }
+
+    /** Chiude un allenamento rimasto aperto da un giorno precedente. */
+    fun closeStale(onDone: () -> Unit) = viewModelScope.launch {
+        workouts.getUnfinished()?.let { workouts.closeOpenSession(it.id) }
+        onDone()
     }
 }

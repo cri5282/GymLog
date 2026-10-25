@@ -12,8 +12,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -26,13 +29,14 @@ import kotlinx.coroutines.delay
 
 /** Barra fluttuante del recupero: tempo, avanzamento, +15 s, Salta. Invisibile se non c'è un recupero. */
 @Composable
-fun RestTimerBar(state: TimerState, onAdd: () -> Unit, onSkip: () -> Unit, modifier: Modifier = Modifier) {
+fun RestTimerBar(state: TimerState, onAdjust: (Int) -> Unit, onSkip: () -> Unit, modifier: Modifier = Modifier) {
     val end = state.endAtMillis ?: return
     val c = Gym.colors
-    val remaining by produceState(state.remainingSeconds(System.currentTimeMillis()), end) {
+    var remaining by remember(end) { mutableIntStateOf(state.remainingSeconds(System.currentTimeMillis())) }
+    LaunchedEffect(end) {
         while (true) {
-            value = state.remainingSeconds(System.currentTimeMillis())
-            if (value == 0) break
+            remaining = state.remainingSeconds(System.currentTimeMillis())
+            if (remaining == 0) break
             delay(250)
         }
     }
@@ -42,7 +46,14 @@ fun RestTimerBar(state: TimerState, onAdd: () -> Unit, onSkip: () -> Unit, modif
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (remaining > 0) "%d:%02d".format(remaining / 60, remaining % 60) else "Pronto!",
                     style = GymType.timer, color = if (remaining > 0) c.text else c.accent, modifier = Modifier.weight(1f))
-                TextButton(onClick = onAdd) { Text("+15 s", color = c.accent, style = androidx.compose.material3.MaterialTheme.typography.titleMedium) }
+                if (remaining > 0) {
+                    TextButton(onClick = { onAdjust(-15) }) {
+                        Text("−15 s", color = c.accent, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                    }
+                }
+                TextButton(onClick = { onAdjust(15) }) {
+                    Text("+15 s", color = c.accent, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                }
                 PrimaryButton(if (remaining > 0) "Salta" else "Chiudi", onSkip, Modifier.heightIn(min = 52.dp))
             }
             LinearProgressIndicator(

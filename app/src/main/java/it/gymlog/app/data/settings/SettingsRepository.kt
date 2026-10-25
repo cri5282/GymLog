@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -13,6 +14,15 @@ import kotlinx.coroutines.flow.map
 enum class OneRmFormula(val label: String) { EPLEY("Epley"), BRZYCKI("Brzycki") }
 
 enum class ThemeMode(val label: String) { SYSTEM("Sistema"), LIGHT("Chiaro"), DARK("Scuro") }
+
+enum class Sex(val label: String) { MALE("Uomo"), FEMALE("Donna") }
+
+/** Icona dell'app (le varianti sono activity-alias nel manifest). */
+enum class AppIcon(val label: String, val alias: String) {
+    CLASSIC("Classica", ".MainActivityClassic"),
+    DARK("Scura", ".MainActivityDark"),
+    ACCENT("Accento", ".MainActivityAccent"),
+}
 
 /** Colore d'accento: valori ARGB per tema scuro e chiaro (spec §2). */
 enum class Accent(val label: String, val dark: Long, val light: Long) {
@@ -32,9 +42,24 @@ data class Settings(
     val themeMode: ThemeMode = ThemeMode.DARK,
     val accent: Accent = Accent.GREEN,
     val keepScreenOn: Boolean = true,
+    /** Serie di riscaldamento calcolate dai carichi dell'ultima volta. */
+    val autoWarmup: Boolean = true,
+    /** Dati facoltativi per composizione corporea e FFMI. */
+    val heightCm: Double? = null,
+    val birthYear: Int? = null,
+    val sex: Sex = Sex.MALE,
+    /** Backup automatico settimanale nella cartella scelta. */
+    val autoBackup: Boolean = false,
+    val backupTreeUri: String? = null,
+    val lastBackupAt: Long = 0,
+    val appIcon: AppIcon = AppIcon.CLASSIC,
 )
 
-class SettingsRepository(private val dataStore: DataStore<Preferences>) {
+class SettingsRepository(
+    private val dataStore: DataStore<Preferences>,
+    /** Valori usati quando una chiave non è ancora stata scritta (i test disattivano il riscaldamento). */
+    private val defaults: Settings = Settings(),
+) {
     private object Keys {
         val step = doublePreferencesKey("default_load_step_kg")
         val formula = stringPreferencesKey("one_rm_formula")
@@ -43,13 +68,21 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val themeMode = stringPreferencesKey("theme_mode")
         val accent = stringPreferencesKey("accent")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
+        val autoWarmup = booleanPreferencesKey("auto_warmup")
+        val height = doublePreferencesKey("height_cm")
+        val birthYear = longPreferencesKey("birth_year")
+        val sex = stringPreferencesKey("sex")
+        val autoBackup = booleanPreferencesKey("auto_backup")
+        val backupTree = stringPreferencesKey("backup_tree_uri")
+        val lastBackup = longPreferencesKey("last_backup_at")
+        val appIcon = stringPreferencesKey("app_icon")
     }
 
     private inline fun <reified E : Enum<E>> Preferences.enumOr(key: Preferences.Key<String>, default: E): E =
         this[key]?.let { v -> enumValues<E>().firstOrNull { it.name == v } } ?: default
 
     private fun read(p: Preferences): Settings {
-        val d = Settings()
+        val d = defaults
         return Settings(
             defaultLoadStepKg = p[Keys.step] ?: d.defaultLoadStepKg,
             oneRmFormula = p.enumOr(Keys.formula, d.oneRmFormula),
@@ -58,6 +91,14 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             themeMode = p.enumOr(Keys.themeMode, d.themeMode),
             accent = p.enumOr(Keys.accent, d.accent),
             keepScreenOn = p[Keys.keepScreenOn] ?: d.keepScreenOn,
+            autoWarmup = p[Keys.autoWarmup] ?: d.autoWarmup,
+            heightCm = p[Keys.height]?.takeIf { it > 0 },
+            birthYear = p[Keys.birthYear]?.takeIf { it > 0 }?.toInt(),
+            sex = p.enumOr(Keys.sex, d.sex),
+            autoBackup = p[Keys.autoBackup] ?: d.autoBackup,
+            backupTreeUri = p[Keys.backupTree]?.takeIf { it.isNotBlank() },
+            lastBackupAt = p[Keys.lastBackup] ?: 0,
+            appIcon = p.enumOr(Keys.appIcon, d.appIcon),
         )
     }
 
@@ -75,6 +116,14 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             p[Keys.themeMode] = next.themeMode.name
             p[Keys.accent] = next.accent.name
             p[Keys.keepScreenOn] = next.keepScreenOn
+            p[Keys.autoWarmup] = next.autoWarmup
+            p[Keys.height] = next.heightCm ?: 0.0
+            p[Keys.birthYear] = next.birthYear?.toLong() ?: 0L
+            p[Keys.sex] = next.sex.name
+            p[Keys.autoBackup] = next.autoBackup
+            p[Keys.backupTree] = next.backupTreeUri.orEmpty()
+            p[Keys.lastBackup] = next.lastBackupAt
+            p[Keys.appIcon] = next.appIcon.name
         }
     }
 }

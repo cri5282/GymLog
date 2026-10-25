@@ -47,7 +47,7 @@ fun elapsedLabel(startedAt: Long, now: Long): String {
 @Composable
 fun WorkoutTopBar(
     title: String, startedAt: Long, done: Int, total: Int, canReplace: Boolean,
-    onClose: () -> Unit, onFinish: () -> Unit, onAddExercise: () -> Unit, onReplaceExercise: () -> Unit,
+    onClose: () -> Unit, onFinish: () -> Unit, onAddExercise: () -> Unit, onReplaceExercise: () -> Unit, onEditExercise: () -> Unit,
 ) {
     val c = Gym.colors
     val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(1000) } }
@@ -65,6 +65,7 @@ fun WorkoutTopBar(
                     DropdownMenuItem(text = { Text("Aggiungi esercizio") }, onClick = { menu = false; onAddExercise() })
                     DropdownMenuItem(text = { Text("Sostituisci esercizio (solo oggi)") }, enabled = canReplace,
                         onClick = { menu = false; onReplaceExercise() })
+                    DropdownMenuItem(text = { Text("Modifica esercizio") }, onClick = { menu = false; onEditExercise() })
                 }
             }
             Box(Modifier.size(44.dp).clip(CircleShape).background(c.accent).clickable(onClick = onFinish), contentAlignment = Alignment.Center) {

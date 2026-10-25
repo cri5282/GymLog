@@ -1,3 +1,5 @@
 <resources>
     <color name="ic_launcher_background">#1E3A5F</color>
+    <color name="ic_launcher_background_dark">#101114</color>
+    <color name="ic_launcher_background_accent">#1FA33A</color>
 </resources>

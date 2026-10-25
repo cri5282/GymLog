@@ -3,6 +3,7 @@ package it.gymlog.app.data.db
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
@@ -149,7 +150,7 @@ interface WorkoutDao {
     fun countWorkingSetsSince(fromMillis: Long): Flow<Int>
 
     @Query(
-        "SELECT MAX(e.weightKg) FROM SetEntry e JOIN WorkoutSession s ON s.id = e.sessionId " +
+        "SELECT MAX(MAX(e.weightKg), MAX(COALESCE(e.weightKgR, e.weightKg))) FROM SetEntry e JOIN WorkoutSession s ON s.id = e.sessionId " +
             "WHERE e.exerciseId = :exerciseId AND s.endedAt IS NOT NULL AND e.setType != 'WARMUP'"
     )
     suspend fun bestWeight(exerciseId: Long): Double?
@@ -166,6 +167,32 @@ interface WorkoutDao {
 
     @Query("SELECT * FROM SetEntry WHERE id = :id")
     suspend fun getSet(id: Long): SetEntry?
+
+    /** Ultima serie confermata della sessione (per chiudere un allenamento rimasto aperto). */
+    @Query("SELECT MAX(completedAt) FROM SetEntry WHERE sessionId = :sessionId")
+    suspend fun lastCompletedAt(sessionId: Long): Long?
+
+    /** Serie allenanti concluse, con esercizio e sessione, per i grafici delle statistiche. */
+    @Query(
+        "SELECT e.id AS setId, e.exerciseId AS exerciseId, x.name AS exerciseName, " +
+            "x.primaryMuscle AS muscle, x.single AS single, s.startedAt AS startedAt, " +
+            "e.setType AS setType, e.weightKg AS weightKg, e.weightKgR AS weightKgR, " +
+            "e.reps AS reps, e.repsR AS repsR " +
+            "FROM SetEntry e JOIN WorkoutSession s ON s.id = e.sessionId JOIN Exercise x ON x.id = e.exerciseId " +
+            "WHERE s.endedAt IS NOT NULL AND e.setType != 'WARMUP' " +
+            "ORDER BY s.startedAt, e.exerciseOrder, e.setIndex"
+    )
+    fun observeStatSets(): Flow<List<StatSet>>
+
+    @Query(
+        "SELECT e.sessionId AS sessionId, s.title AS title, s.startedAt AS startedAt, s.endedAt AS endedAt, " +
+            "x.name AS exerciseName, e.setIndex AS setIndex, e.setType AS setType, " +
+            "e.weightKg AS weightKg, e.weightKgR AS weightKgR, e.reps AS reps, e.repsR AS repsR, " +
+            "e.rir AS rir, e.rirR AS rirR, e.notes AS notes " +
+            "FROM SetEntry e JOIN WorkoutSession s ON s.id = e.sessionId JOIN Exercise x ON x.id = e.exerciseId " +
+            "WHERE s.endedAt IS NOT NULL ORDER BY s.startedAt, e.exerciseOrder, e.setIndex, e.id"
+    )
+    suspend fun allRowsForExport(): List<CsvRow>
 
     @Insert suspend fun insertSet(s: SetEntry): Long
     @Insert suspend fun insertSets(s: List<SetEntry>)
@@ -187,4 +214,24 @@ interface WorkoutDao {
             "WHERE e.exerciseId = :exerciseId AND s.endedAt IS NOT NULL ORDER BY s.startedAt DESC, e.setIndex"
     )
     fun historyFor(exerciseId: Long): Flow<List<SetWithSession>>
+}
+
+@Dao
+interface BodyDao {
+    @Query("SELECT * FROM BodyEntry ORDER BY epochDay DESC")
+    fun observeAll(): Flow<List<BodyEntry>>
+
+    @Query("SELECT * FROM BodyEntry ORDER BY epochDay")
+    suspend fun all(): List<BodyEntry>
+
+    @Query("SELECT * FROM BodyEntry ORDER BY epochDay DESC LIMIT 1")
+    suspend fun latest(): BodyEntry?
+
+    @Query("SELECT * FROM BodyEntry WHERE epochDay = :epochDay LIMIT 1")
+    suspend fun byDay(epochDay: Long): BodyEntry?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(e: BodyEntry): Long
+
+    @Delete suspend fun delete(e: BodyEntry)
 }

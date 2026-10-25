@@ -55,6 +55,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -83,7 +86,15 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun ExerciseEditScreen(exerciseId: Long, onBack: () -> Unit, onHistory: (Long) -> Unit) {
+fun ExerciseEditScreen(
+    exerciseId: Long,
+    onBack: () -> Unit,
+    onHistory: (Long) -> Unit,
+    /** Nascosto quando la modifica avviene dentro un allenamento (non c'è navigazione). */
+    showHistory: Boolean = true,
+    /** Nascosto durante l'allenamento: eliminare l'esercizio lascerebbe serie orfane. */
+    showDelete: Boolean = true,
+) {
     val vm = appViewModel(key = "exercise-$exerciseId") { ExerciseEditViewModel(exerciseId, it.exercises, it.photos) }
     val form by vm.form.collectAsStateWithLifecycle()
     val photos by vm.photos.collectAsStateWithLifecycle()
@@ -106,9 +117,9 @@ fun ExerciseEditScreen(exerciseId: Long, onBack: () -> Unit, onHistory: (Long) -
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Indietro", tint = c.text) }
             Spacer(Modifier.weight(1f))
-            if (exerciseId != 0L) RoundIconButton(Icons.Rounded.History, "Storico", { onHistory(exerciseId) }, size = 44)
+            if (showHistory && exerciseId != 0L) RoundIconButton(Icons.Rounded.History, "Storico", { onHistory(exerciseId) }, size = 44)
             Spacer(Modifier.width(8.dp))
-            RoundIconButton(Icons.Rounded.Delete, "Elimina", { scope.launch { confirmDelete = vm.isUsed() } }, size = 44)
+            if (showDelete) RoundIconButton(Icons.Rounded.Delete, "Elimina", { scope.launch { confirmDelete = vm.isUsed() } }, size = 44)
         }
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
@@ -166,6 +177,19 @@ fun ExerciseEditScreen(exerciseId: Long, onBack: () -> Unit, onHistory: (Long) -
             }
             SectionLabel("Avanzate")
             GymCard {
+                Row(
+                    Modifier.fillMaxWidth().clickable { vm.edit { it.copy(single = !it.single) } },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Unilaterale (single)", style = MaterialTheme.typography.bodyLarge)
+                        Text("Peso, reps e RIR separati per sinistra e destra", color = Gym.colors.textSecondary,
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(checked = form.single, onCheckedChange = { v -> vm.edit { it.copy(single = v) } },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Gym.colors.accent, checkedThumbColor = Gym.colors.onAccent))
+                }
+                Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = form.hevyName, onValueChange = { v -> vm.edit { it.copy(hevyName = v) } },
                     label = { Text("Nome in Hevy (per l'importazione)") }, singleLine = true, shape = RoundedCornerShape(14.dp),
