@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,8 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,6 +48,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -67,6 +68,7 @@ import it.gymlog.app.ui.common.parseDecimal
 import it.gymlog.app.ui.design.Gym
 import it.gymlog.app.ui.design.GymCard
 import it.gymlog.app.ui.design.GymChip
+import it.gymlog.app.ui.design.GymSwitchRow
 import it.gymlog.app.ui.design.PrimaryButton
 import it.gymlog.app.ui.design.ScreenHeader
 import it.gymlog.app.ui.design.SecondaryButton
@@ -114,8 +116,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     ThemeMode.entries.forEach { mode ->
                         val selected = settings.themeMode == mode
                         Box(
-                            Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
-                                .background(if (selected) c.card else Color.Transparent).clickable { vm.setThemeMode(mode) },
+                            Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp))
+                                .background(if (selected) c.card else Color.Transparent)
+                                .selectable(selected = selected, role = Role.RadioButton) { vm.setThemeMode(mode) },
                             contentAlignment = Alignment.Center,
                         ) { Text(mode.label, color = if (selected) c.text else c.textSecondary, textAlign = TextAlign.Center) }
                     }
@@ -126,11 +129,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                         val color = Color(if (c.dark) a.dark else a.light)
                         val selected = settings.accent == a
                         Box(
-                            Modifier.size(44.dp).clip(CircleShape).background(color)
+                            Modifier.size(48.dp).clip(CircleShape).background(color)
                                 .border(3.dp, if (selected) c.text else Color.Transparent, CircleShape)
-                                .clickable { vm.setAccent(a) },
+                                .selectable(selected = selected, role = Role.RadioButton) { vm.setAccent(a) }
+                                .semantics { contentDescription = "Accento ${a.label}" },
                             contentAlignment = Alignment.Center,
-                        ) { if (selected) Icon(Icons.Rounded.Check, a.label, tint = c.onAccent) }
+                        ) { if (selected) Icon(Icons.Rounded.Check, null, tint = c.onAccent) }
                     }
                 }
                 Text(settings.accent.label, color = c.textSecondary)
@@ -138,7 +142,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("Icona dell'app", color = c.textSecondary)
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AppIcon.entries.forEach { icon ->
-                        GymChip(icon.label, selected = settings.appIcon == icon, onClick = { vm.setAppIcon(icon, context) })
+                        GymChip(
+                            icon.label, selected = settings.appIcon == icon,
+                            onClick = { vm.setAppIcon(icon, context) }, selectableRole = Role.RadioButton,
+                        )
                     }
                 }
             }
@@ -154,18 +161,31 @@ fun SettingsScreen(onBack: () -> Unit) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
                 )
+                var restText by remember(settings.defaultRestSeconds) {
+                    mutableStateOf(settings.defaultRestSeconds.toString())
+                }
+                OutlinedTextField(
+                    value = restText,
+                    onValueChange = { text ->
+                        restText = text
+                        text.trim().toIntOrNull()?.takeIf { it in 15..600 }?.let(vm::setDefaultRest)
+                    },
+                    label = { Text("Recupero predefinito (secondi)") },
+                    supportingText = { Text("Per esercizi liberi e aggiunti oggi, da 15 a 600 secondi") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                )
                 Text("Formula del 1RM stimato", color = c.textSecondary, modifier = Modifier.padding(top = 8.dp))
                 Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OneRmFormula.entries.forEach { f ->
-                        GymChip(f.label, selected = settings.oneRmFormula == f, onClick = { vm.setFormula(f) })
+                        GymChip(
+                            f.label, selected = settings.oneRmFormula == f,
+                            onClick = { vm.setFormula(f) }, selectableRole = Role.RadioButton,
+                        )
                     }
                 }
                 HorizontalDivider(color = c.border.copy(alpha = 0.5f))
-                SwitchRow("Schermo sempre acceso durante l'allenamento", settings.keepScreenOn, vm::setKeepScreenOn)
-                HorizontalDivider(color = c.border.copy(alpha = 0.5f))
-                SwitchRow("Serie di riscaldamento automatiche", settings.autoWarmup, vm::setAutoWarmup)
-                Text("Calcolate al 40%, 60% e 80% del carico dell'ultima volta e messe all'inizio di ogni allenamento.",
-                    color = c.textSecondary)
+                GymSwitchRow("Schermo sempre acceso durante l'allenamento", settings.keepScreenOn, vm::setKeepScreenOn)
             }
 
             SectionLabel("Corpo (facoltativo)")
@@ -173,7 +193,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("Serve solo per stimare grasso corporeo e FFMI nella sezione Corpo.", color = c.textSecondary)
                 Text("Sesso", color = c.textSecondary, modifier = Modifier.padding(top = 10.dp))
                 Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Sex.entries.forEach { s -> GymChip(s.label, selected = settings.sex == s, onClick = { vm.setSex(s) }) }
+                    Sex.entries.forEach { s ->
+                        GymChip(
+                            s.label, selected = settings.sex == s,
+                            onClick = { vm.setSex(s) }, selectableRole = Role.RadioButton,
+                        )
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumberSetting("Altezza (cm)", settings.heightCm?.let(::formatKg).orEmpty(), Modifier.weight(1f), KeyboardType.Decimal) {
@@ -187,9 +212,26 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             SectionLabel("Timer di recupero")
             GymCard {
-                SwitchRow("Vibrazione a fine recupero", settings.timerVibration, vm::setVibration)
+                GymSwitchRow("Vibrazione a fine recupero", settings.timerVibration, vm::setVibration)
                 HorizontalDivider(color = c.border.copy(alpha = 0.5f))
-                SwitchRow("Suono a fine recupero", settings.timerSound, vm::setSound)
+                GymSwitchRow("Suono a fine recupero", settings.timerSound, vm::setSound)
+            }
+
+            SectionLabel("Accessibilità")
+            GymCard {
+                GymSwitchRow(
+                    "Chip degli esercizi in allenamento",
+                    settings.showExerciseChips,
+                    vm::setShowExerciseChips,
+                    supportingText = "Mostra la barra per saltare da un esercizio all'altro.",
+                )
+                HorizontalDivider(color = c.border.copy(alpha = 0.5f))
+                GymSwitchRow(
+                    "Feedback aptico",
+                    settings.haptics,
+                    vm::setHaptics,
+                    supportingText = "Vibrazione breve quando confermi o rimuovi una serie.",
+                )
             }
 
             SectionLabel("Dati")
@@ -223,7 +265,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     restorePicker.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
                 }, Modifier.fillMaxWidth(), Icons.Rounded.Restore)
                 HorizontalDivider(color = c.border.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 16.dp))
-                SwitchRow("Backup automatico settimanale", settings.autoBackup, vm::setAutoBackup)
+                GymSwitchRow("Backup automatico settimanale", settings.autoBackup, vm::setAutoBackup)
                 SecondaryButton(
                     if (settings.backupTreeUri == null) "Scegli cartella dei backup" else "Cambia cartella dei backup",
                     { folderPicker.launch(null) }, Modifier.fillMaxWidth(), Icons.Rounded.Folder,
@@ -320,14 +362,4 @@ private fun NumberSetting(
         keyboardOptions = KeyboardOptions(keyboardType = type),
         singleLine = true, shape = RoundedCornerShape(14.dp), modifier = modifier,
     )
-}
-
-@Composable
-private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    val c = Gym.colors
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onChange(!checked) }, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = c.text, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-        Switch(checked = checked, onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(checkedTrackColor = c.accent, checkedThumbColor = c.onAccent))
-    }
 }

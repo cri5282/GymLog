@@ -26,6 +26,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -40,6 +41,8 @@ class FakeRestTimer : RestTimer {
     var started: Int? = null
     override fun start(seconds: Int) { started = seconds }
     override fun addSeconds(seconds: Int) {}
+    override fun pause() {}
+    override fun resume() {}
     override fun skip() { started = null }
 }
 
@@ -186,6 +189,102 @@ class WorkoutViewModelTest {
         }
     }
 
+    @Test fun removeRow_removesRowAndDeletesSavedSet() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        vm.removeRow(0, 0)
+        assertEquals(2, vm.state.value.pages[0].rows.size)
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(10_000) {
+                while (db.workoutDao().getSets(e.session).isNotEmpty()) kotlinx.coroutines.delay(20)
+            }
+        }
+    }
+
+    @Test fun removeRow_unconfirmedRowOnlyChangesTheTable() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.removeRow(0, 2)
+        assertEquals(2, vm.state.value.pages[0].rows.size)
+        assertTrue(db.workoutDao().getSets(e.session).isEmpty())
+    }
+
+    @Test fun removeRow_reindexesFollowingSavedSets() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        vm.confirm(0, 2)
+        vm.await { it.pages[0].rows[2].done }
+        vm.removeRow(0, 0)
+        val rows = vm.state.value.pages[0].rows
+        assertEquals(2, rows.size)
+        assertEquals(listOf(false, true), rows.map { it.done })
+        assertEquals(1, rows[1].entry!!.setIndex)
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(10_000) {
+                while (db.workoutDao().getSets(e.session).singleOrNull()?.setIndex != 1) kotlinx.coroutines.delay(20)
+            }
+        }
+    }
+
+    @Test fun setExerciseRest_changesTimerForNextSet() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.setExerciseRest(0, 45)
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        assertEquals(45, vm.state.value.pages[0].planned.restSeconds)
+        assertEquals(45, timer.started)
+    }
+
+    @Test fun duplicateRow_insertsCopyAndReindexesFollowingSavedSets() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.setWeight(0, 2, 70.0)
+        vm.confirm(0, 2)
+        vm.await { it.pages[0].rows[2].done }
+        vm.duplicateRow(0, 0)
+        val rows = vm.state.value.pages[0].rows
+        assertEquals(4, rows.size)
+        assertFalse(rows[1].done)
+        assertFalse(rows[1].entry != null)
+        assertEquals(3, rows[3].entry!!.setIndex)
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(10_000) {
+                while (db.workoutDao().getSets(e.session).singleOrNull()?.setIndex != 3) kotlinx.coroutines.delay(20)
+            }
+        }
+    }
+
+    @Test fun undoRemove_restoresRowAndSavedSet() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.setWeight(0, 0, 60.0)
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        vm.removeRow(0, 0)
+        vm.await { it.pages[0].rows.size == 2 }
+        vm.undoRemove()
+        val rows = vm.await { it.pages[0].rows.size == 3 }.pages[0].rows
+        assertTrue(rows[0].done)
+        assertEquals(60.0, rows[0].weightKg, 1e-9)
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(10_000) {
+                while (db.workoutDao().getSets(e.session).singleOrNull()?.setIndex != 0) kotlinx.coroutines.delay(20)
+            }
+        }
+        assertEquals(1, db.workoutDao().getSets(e.session).size)
+    }
+
     @Test fun confirmOutOfOrder_resumeKeepsSlots() = runTest {
         val e = env()
         val vm = vm(e)
@@ -281,6 +380,13 @@ class WorkoutViewModelTest {
         vm.await { it.pages[0].rows[0].done }
         vm.setWeight(0, 0, 25.0, right = true)
         vm.changeReps(0, 0, -1, right = true)
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(10_000) {
+                while (db.workoutDao().getSets(e.session).singleOrNull()
+                        ?.let { it.weightKgR != 25.0 || it.repsR != 9 } != false
+                ) kotlinx.coroutines.delay(20)
+            }
+        }
         val s = db.workoutDao().getSets(e.session).single()
         assertEquals(20.0, s.weightKg, 1e-9); assertEquals(10, s.reps)
         assertEquals(25.0, s.weightKgR!!, 1e-9); assertEquals(9, s.repsR)

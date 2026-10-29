@@ -78,8 +78,13 @@ fun ExerciseStatsScreen(exerciseId: Long, onBack: () -> Unit, onOpenHistory: () 
                             }
                             Text(if (last.pct < 0) "Il lato destro è più debole." else "Il lato destro è più forte.",
                                 color = c.textSecondary, modifier = Modifier.padding(top = 4.dp))
-                            Sparkline(state.asymmetry.map { it.pct }, Modifier.fillMaxWidth().height(72.dp).padding(top = 12.dp),
-                                color = c.accent)
+                            Sparkline(
+                                state.asymmetry.map { it.pct },
+                                Modifier.fillMaxWidth().height(72.dp).padding(top = 12.dp),
+                                color = c.accent,
+                                description = "Andamento dell'asimmetria tra lato sinistro e destro, " +
+                                    "ultimo valore ${signedPct(state.asymmetry.last().pct)}",
+                            )
                         }
                     }
                 }
@@ -115,7 +120,13 @@ private fun MetricCard(title: String, values: List<Double>, unit: String) {
             Text(title, color = c.textSecondary, modifier = Modifier.weight(1f))
             Text("${formatKg(values.lastOrNull() ?: 0.0)} $unit", style = GymType.number, color = c.accent)
         }
-        Sparkline(values, Modifier.fillMaxWidth().height(90.dp).padding(top = 12.dp))
+        Sparkline(
+            values,
+            Modifier.fillMaxWidth().height(90.dp).padding(top = 12.dp),
+            description = if (values.isEmpty()) null else
+                "$title: minimo ${formatKg(values.min())} $unit, massimo ${formatKg(values.max())} $unit, " +
+                    "ultimo ${formatKg(values.last())} $unit",
+        )
         if (values.isNotEmpty()) {
             Row(Modifier.padding(top = 4.dp)) {
                 Text("min ${formatKg(values.min())}", style = GymType.label, color = c.textSecondary)

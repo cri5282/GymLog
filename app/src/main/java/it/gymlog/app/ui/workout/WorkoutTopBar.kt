@@ -48,13 +48,14 @@ fun elapsedLabel(startedAt: Long, now: Long): String {
 fun WorkoutTopBar(
     title: String, startedAt: Long, done: Int, total: Int, canReplace: Boolean,
     onClose: () -> Unit, onFinish: () -> Unit, onAddExercise: () -> Unit, onReplaceExercise: () -> Unit, onEditExercise: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val c = Gym.colors
     val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(1000) } }
     var menu by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundIconButton(Icons.Rounded.Close, "Esci (l'allenamento resta in corso)", onClose, size = 44)
+            RoundIconButton(Icons.Rounded.Close, "Esci (l'allenamento resta in corso)", onClose, size = 48)
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(title, style = MaterialTheme.typography.titleLarge, color = c.text, fontWeight = FontWeight.Bold, maxLines = 1)
                 Text("${elapsedLabel(startedAt, now)} · $done/$total serie", color = c.textSecondary)
@@ -66,9 +67,13 @@ fun WorkoutTopBar(
                     DropdownMenuItem(text = { Text("Sostituisci esercizio (solo oggi)") }, enabled = canReplace,
                         onClick = { menu = false; onReplaceExercise() })
                     DropdownMenuItem(text = { Text("Modifica esercizio") }, onClick = { menu = false; onEditExercise() })
+                    DropdownMenuItem(text = { Text("Impostazioni allenamento") }, onClick = { menu = false; onOpenSettings() })
                 }
             }
-            Box(Modifier.size(44.dp).clip(CircleShape).background(c.accent).clickable(onClick = onFinish), contentAlignment = Alignment.Center) {
+            IconButton(
+                onClick = onFinish,
+                modifier = Modifier.size(48.dp).clip(CircleShape).background(c.accent),
+            ) {
                 Icon(Icons.Rounded.Check, "Termina allenamento", tint = c.onAccent)
             }
         }

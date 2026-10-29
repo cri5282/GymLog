@@ -37,10 +37,10 @@ import it.gymlog.app.ui.design.GymType
 import it.gymlog.app.ui.design.SecondaryButton
 import it.gymlog.app.ui.programs.formatRest
 
-fun Target.label(rest: Int): String {
+fun Target.label(): String {
     val reps = if (repMin == repMax) "$repMin" else "$repMin-$repMax"
     val rir = if (rirMin == rirMax) "$rirMin" else "$rirMin-$rirMax"
-    return "$sets × $reps · RIR $rir · recupero ${formatRest(rest)}"
+    return "$sets × $reps · RIR $rir"
 }
 
 /** "80 kg × 8, 8, 7" (stesso carico) oppure "80×8, 82,5×7". */
@@ -59,7 +59,7 @@ fun lastTimeLabel(sets: List<SetDraft>): String {
 fun ExercisePage(
     page: PageState, index: Int, count: Int, active: Int?, bottomPadding: Dp,
     rowActions: (Int) -> RowActions, onApplySuggestion: () -> Unit, onAddSet: () -> Unit,
-    onAddPhoto: () -> Unit, onShowNotes: () -> Unit,
+    onAddPhoto: () -> Unit, onShowNotes: () -> Unit, onEditRest: () -> Unit,
 ) {
     val p = page.planned
     val e = p.exercise.exercise
@@ -90,8 +90,9 @@ fun ExercisePage(
                 if (e.lengthBias != LengthBias.NONE) GymChip(e.lengthBias.label)
                 p.supersetGroup?.let { GymChip("Superserie $it") }
                 p.bestKg?.takeIf { it > 0 }?.let { GymChip("Record: ${formatKg(it)} kg") }
+                GymChip("Recupero ${formatRest(p.restSeconds)}", onClick = onEditRest, action = true)
             }
-            Text(p.target?.label(p.restSeconds) ?: "Aggiunto oggi · recupero ${formatRest(p.restSeconds)}",
+            Text(p.target?.label() ?: "Aggiunto oggi",
                 color = c.accent, style = MaterialTheme.typography.titleSmall)
             Text("Ultima volta: ${lastTimeLabel(p.lastTime)}", color = c.textSecondary, modifier = Modifier.padding(top = 2.dp))
         }

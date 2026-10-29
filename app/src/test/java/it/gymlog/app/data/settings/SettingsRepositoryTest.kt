@@ -23,7 +23,7 @@ class SettingsRepositoryTest {
         assertEquals(
             Settings(2.5, OneRmFormula.EPLEY, timerVibration = true, timerSound = true,
                 themeMode = ThemeMode.DARK, accent = Accent.GREEN, keepScreenOn = true,
-                autoWarmup = true, heightCm = null, birthYear = null, sex = Sex.MALE,
+                heightCm = null, birthYear = null, sex = Sex.MALE,
                 autoBackup = false, backupTreeUri = null, lastBackupAt = 0, appIcon = AppIcon.CLASSIC),
             repo(backgroundScope).settings.first(),
         )

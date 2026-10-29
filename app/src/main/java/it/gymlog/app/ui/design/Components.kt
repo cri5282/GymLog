@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,7 +25,11 @@ import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,7 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 val CardShape = RoundedCornerShape(20.dp)
@@ -45,7 +56,7 @@ fun GymCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val m = modifier.fillMaxWidth().clip(CardShape).background(color)
-        .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+        .let { if (onClick != null) it.clickable(role = Role.Button, onClick = onClick) else it }
         .padding(16.dp)
     Column(m, content = content)
 }
@@ -53,7 +64,7 @@ fun GymCard(
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(text.uppercase(), style = GymType.label, color = Gym.colors.textSecondary,
-        modifier = modifier.padding(horizontal = 4.dp, vertical = 8.dp))
+        modifier = modifier.padding(horizontal = 4.dp, vertical = 8.dp).semantics { heading() })
 }
 
 /** Titolo grande di schermata con sottotitolo e azione rotonda a destra. */
@@ -62,7 +73,7 @@ fun ScreenHeader(title: String, subtitle: String? = null, action: (@Composable (
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = GymType.screenTitle, color = Gym.colors.text)
+            Text(title, style = GymType.screenTitle, color = Gym.colors.text, modifier = Modifier.semantics { heading() })
             if (subtitle != null) Text(subtitle, color = Gym.colors.textSecondary)
         }
         action?.invoke()
@@ -73,7 +84,8 @@ fun ScreenHeader(title: String, subtitle: String? = null, action: (@Composable (
 @Composable
 fun RoundIconButton(icon: ImageVector, description: String, onClick: () -> Unit, size: Int = 48) {
     Box(
-        Modifier.size(size.dp).clip(CircleShape).background(Gym.colors.raised).clickable(onClick = onClick),
+        Modifier.size(size.coerceAtLeast(48).dp).clip(CircleShape).background(Gym.colors.raised)
+            .clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, description, tint = Gym.colors.text) }
 }
@@ -82,17 +94,30 @@ fun RoundIconButton(icon: ImageVector, description: String, onClick: () -> Unit,
 fun GymChip(
     text: String, selected: Boolean = false, onClick: (() -> Unit)? = null, modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+    maxLines: Int = Int.MAX_VALUE,
+    /** true per un chip che esegue un'azione invece di rappresentare una selezione. */
+    action: Boolean = false,
+    selectableRole: Role = Role.Checkbox,
 ) {
     val c = Gym.colors
     Box(
-        modifier.heightIn(min = 36.dp).clip(CircleShape)
+        modifier.heightIn(min = 48.dp).clip(CircleShape)
             .background(if (selected) c.accent else c.raised)
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+            .let {
+                when {
+                    onClick == null -> it
+                    action -> it.clickable(role = Role.Button, onClickLabel = text, onClick = onClick)
+                    else -> it.selectable(selected = selected, role = selectableRole, onClick = onClick)
+                }
+            }
             .padding(contentPadding),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (selected) c.onAccent else c.text, style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
-            maxLines = 1, softWrap = false)
+        Text(
+            text, color = if (selected) c.onAccent else c.text,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = maxLines, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -100,14 +125,14 @@ fun GymChip(
 @Composable
 fun AccentPill(text: String, icon: ImageVector? = null, onClick: (() -> Unit)? = null, color: Color = Gym.colors.accent, modifier: Modifier = Modifier) {
     Row(
-        modifier.heightIn(min = 36.dp).clip(CircleShape).background(color.copy(alpha = if (Gym.colors.dark) 0.18f else 0.14f))
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+        modifier.heightIn(min = 48.dp).clip(CircleShape).background(color.copy(alpha = if (Gym.colors.dark) 0.18f else 0.14f))
+            .let { if (onClick != null) it.clickable(role = Role.Button, onClickLabel = text, onClick = onClick) else it }
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (icon != null) Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
-        Text(text, color = color, style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+        Text(text, color = Gym.colors.text, style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -115,19 +140,24 @@ fun AccentPill(text: String, icon: ImageVector? = null, onClick: (() -> Unit)? =
 @Composable
 fun Stepper(
     value: String, label: String, onMinus: () -> Unit, onPlus: () -> Unit, onTapValue: () -> Unit,
-    modifier: Modifier = Modifier, buttonSize: Int = 44,
+    modifier: Modifier = Modifier, buttonSize: Int = 48,
 ) {
     val c = Gym.colors
     Row(
-        modifier.heightIn(min = 52.dp).clip(RoundedCornerShape(14.dp)).background(c.raised),
+        modifier.heightIn(min = 56.dp).clip(RoundedCornerShape(14.dp)).background(c.raised),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(buttonSize.dp).clickable(onClick = onMinus), contentAlignment = Alignment.Center) {
+        IconButton(onClick = onMinus, modifier = Modifier.size(buttonSize.coerceAtLeast(48).dp)) {
             Icon(Icons.Rounded.Remove, "Meno $label", tint = c.text)
         }
-        Text(value, style = GymType.number, color = c.text, textAlign = TextAlign.Center, maxLines = 1, softWrap = false,
-            modifier = Modifier.weight(1f).clickable(onClick = onTapValue).padding(vertical = 10.dp))
-        Box(Modifier.size(buttonSize.dp).clickable(onClick = onPlus), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.weight(1f).clickable(role = Role.Button, onClickLabel = "Inserisci $label", onClick = onTapValue)
+                .padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(value, style = GymType.number, color = c.text, textAlign = TextAlign.Center, maxLines = 1)
+        }
+        IconButton(onClick = onPlus, modifier = Modifier.size(buttonSize.coerceAtLeast(48).dp)) {
             Icon(Icons.Rounded.Add, "Più $label", tint = c.text)
         }
     }
@@ -152,9 +182,10 @@ fun CircleCheck(done: Boolean, onClick: () -> Unit, description: String = if (do
         Modifier.size(48.dp).clip(CircleShape)
             .background(if (done) c.accent else Color.Transparent)
             .border(BorderStroke(2.dp, if (done) c.accent else c.border), CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClickLabel = description, onClick = onClick)
+            .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
-    ) { Icon(Icons.Rounded.Check, description, tint = if (done) c.onAccent else c.textSecondary) }
+    ) { Icon(Icons.Rounded.Check, null, tint = if (done) c.onAccent else c.textSecondary) }
 }
 
 /** Pulsante principale a pillola, alto almeno 64 dp. */
@@ -202,5 +233,34 @@ fun EmptyState(icon: ImageVector, text: String, action: (@Composable () -> Unit)
 fun IconBadge(icon: ImageVector, color: Color = Gym.colors.accent, size: Int = 40) {
     Box(Modifier.size(size.dp).clip(RoundedCornerShape(12.dp)).background(color), contentAlignment = Alignment.Center) {
         Icon(icon, null, tint = Gym.colors.onAccent, modifier = Modifier.size((size * 0.55).dp))
+    }
+}
+
+/** Riga con switch: tutta la riga è il target, con ruolo e stato annunciati a TalkBack. */
+@Composable
+fun GymSwitchRow(
+    label: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    supportingText: String? = null,
+) {
+    val c = Gym.colors
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 56.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, color = c.text, style = MaterialTheme.typography.bodyLarge)
+            if (supportingText != null) {
+                Text(supportingText, color = c.textSecondary, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Switch(
+            checked = checked, onCheckedChange = null,
+            colors = SwitchDefaults.colors(checkedTrackColor = c.accent, checkedThumbColor = c.onAccent),
+        )
     }
 }

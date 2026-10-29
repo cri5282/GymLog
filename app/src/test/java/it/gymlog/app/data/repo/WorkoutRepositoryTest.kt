@@ -70,32 +70,31 @@ class WorkoutRepositoryTest {
         assertEquals(3, p.target!!.sets)
     }
 
-    @Test fun plan_generatesWarmupsFromPreviousTopWorkingWeight() = runTest {
-        val settings = testSettings(tmp.root, backgroundScope)
-        settings.update { it.copy(autoWarmup = true) }
-        val r = WorkoutRepository(db, settings, clock = { 1_000_000L })
-        val first = r.startOrResume(pushA())
-        val incline = r.plan(first).first()
-        repeat(3) { i -> r.confirmSet(first, incline.exercise.exercise.id, 0, i, w(80.0, 8, 2), "") }
-        r.finish(first)
-
-        val second = r.startOrResume(pushA())
-        val p = r.plan(second).first()
-        assertEquals(listOf(32.5, 47.5, 65.0), p.prefill.take(3).map { it.weightKg })
-        assertEquals(listOf(8, 5, 3), p.prefill.take(3).map { it.reps })
-        assertTrue(p.prefill.take(3).all { it.type == SetType.WARMUP })
-        assertEquals(6, p.prefill.size)
-        assertTrue(p.prefill.drop(3).all { it.type == SetType.WORKING })
-    }
-
-    @Test fun plan_doesNotGenerateWarmupsWhenSettingIsOff() = runTest {
+    @Test fun plan_doesNotGenerateWarmupSets() = runTest {
         val r = repo()
         val first = r.startOrResume(pushA())
         val incline = r.plan(first).first()
         repeat(3) { i -> r.confirmSet(first, incline.exercise.exercise.id, 0, i, w(80.0, 8, 2), "") }
         r.finish(first)
+
         val p = r.plan(r.startOrResume(pushA())).first()
+        assertEquals(3, p.prefill.size)
         assertTrue(p.prefill.all { it.type == SetType.WORKING })
+    }
+
+    @Test fun manualWarmup_remainsAWarmupAndIsNotReusedInPrefill() = runTest {
+        val r = repo()
+        val first = r.startOrResume(pushA())
+        val incline = r.plan(first).first()
+        r.confirmSet(first, incline.exercise.exercise.id, 0, 0, SetDraft(40.0, 10, null, SetType.WARMUP), "")
+        r.confirmSet(first, incline.exercise.exercise.id, 0, 1, w(80.0, 8, 2), "")
+        r.finish(first)
+        assertTrue(db.workoutDao().getSets(first).any { it.setType == SetType.WARMUP })
+
+        val p = r.plan(r.startOrResume(pushA())).first()
+        assertEquals(3, p.prefill.size)
+        assertTrue(p.prefill.all { it.type == SetType.WORKING })
+        assertEquals(80.0, p.prefill.first().weightKg, 1e-9)
     }
 
     @Test fun plan_includesSetsAlreadyDoneAndExtraExercises() = runTest {

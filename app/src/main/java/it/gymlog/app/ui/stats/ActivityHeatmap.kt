@@ -20,10 +20,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import it.gymlog.app.domain.weekStart
 import it.gymlog.app.ui.design.Gym
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -49,12 +52,23 @@ fun ActivityHeatmap(levels: Map<LocalDate, Int>, today: LocalDate) {
     val lastWeek = weekStart(today)
     val weeks = (52 downTo 0).map { lastWeek.minusWeeks(it.toLong()) }
     val listState = rememberLazyListState()
+    val activeDays = levels.count { (day, level) -> !day.isAfter(today) && level > 0 }
+    val fmt = DateTimeFormatter.ofPattern("d MMM", Locale.ITALIAN)
     LaunchedEffect(Unit) { listState.scrollToItem(weeks.lastIndex) }
-    Column {
+    Column(Modifier.semantics { contentDescription = "Mappa di attività: $activeDays giorni con allenamento negli ultimi 12 mesi" }) {
         LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(GAP)) {
             items(weeks.size) { i ->
                 val week = weeks[i]
-                Column(verticalArrangement = Arrangement.spacedBy(GAP)) {
+                val weekActive = (0L until 7L).count { d ->
+                    val day = week.plusDays(d)
+                    !day.isAfter(today) && (levels[day] ?: 0) > 0
+                }
+                Column(
+                    Modifier.semantics(mergeDescendants = true) {
+                        contentDescription = "Settimana dal ${week.format(fmt)}: $weekActive giorni con allenamento"
+                    },
+                    verticalArrangement = Arrangement.spacedBy(GAP),
+                ) {
                     val monthStart = (0L until 7L).map { week.plusDays(it) }.firstOrNull { it.dayOfMonth == 1 }
                     Box(Modifier.height(14.dp).width(CELL)) {
                         if (monthStart != null || i == 0) {

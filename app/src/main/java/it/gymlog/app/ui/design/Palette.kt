@@ -1,6 +1,7 @@
 package it.gymlog.app.ui.design
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import it.gymlog.app.data.settings.Accent
 
 /** Ruoli di colore di GymLog (spec §2). */
@@ -18,9 +19,9 @@ data class GymColors(
     val error: Color,
     val dark: Boolean,
 ) {
-    /** Colori dei tipi di serie non allenanti. */
-    val warmup: Color get() = Color(0xFFFFD60A)
-    val drop: Color get() = Color(0xFFA06BFF)
+    /** Colori dei tipi di serie non allenanti, leggibili su entrambi i temi. */
+    val warmup: Color get() = if (dark) Color(0xFFFFD60A) else Color(0xFF7A5F00)
+    val drop: Color get() = if (dark) Color(0xFFA06BFF) else Color(0xFF6A35C8)
 }
 
 fun gymColors(accent: Accent, dark: Boolean): GymColors {
@@ -47,10 +48,18 @@ fun gymColors(accent: Accent, dark: Boolean): GymColors {
         text = Color(0xFF000000),
         textSecondary = Color(0xFF6C6C70),
         accent = a,
-        onAccent = Color(0xFFFFFFFF),
+        onAccent = readableOn(a),
         accentContainer = a.copy(alpha = 0.14f),
         resume = if (orange) Color(0xFFB38F00) else Color(0xFFD97A00),
         error = Color(0xFFD70015),
         dark = false,
     )
+}
+
+/** Nero o bianco, scegliendo il contrasto maggiore sul colore di sfondo. */
+private fun readableOn(background: Color): Color {
+    val l = background.luminance()
+    val black = (l + 0.05) / 0.05
+    val white = 1.05 / (l + 0.05)
+    return if (black >= white) Color.Black else Color.White
 }

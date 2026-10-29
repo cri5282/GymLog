@@ -3,10 +3,14 @@ package it.gymlog.app.ui.nav
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +26,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import it.gymlog.app.GymLogApp
 import it.gymlog.app.ui.body.BodyScreen
+import it.gymlog.app.ui.common.GymSnackbar
+import it.gymlog.app.ui.common.LocalSnackbar
 import it.gymlog.app.ui.common.appViewModel
 import it.gymlog.app.ui.design.Gym
 import it.gymlog.app.ui.exercises.ExerciseEditScreen
@@ -59,7 +65,7 @@ object Routes {
     fun exerciseEdit(exerciseId: Long) = "exercise/$exerciseId"
     fun dayEdit(dayId: Long) = "day/$dayId"
 
-    val withBottomBar = setOf(HOME, PLAN, STATS, BODY, EXERCISES)
+    val withBottomBar = setOf(HOME, PLAN, STATS, EXERCISES)
 }
 
 @Composable
@@ -71,9 +77,14 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
     val days by start.days.collectAsStateWithLifecycle()
     var picking by remember { mutableStateOf(false) }
     val openWorkout: (Long) -> Unit = { nav.navigate(Routes.workout(it)) { launchSingleTop = true } }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    val snackbar = remember(snackbarHostState, snackbarScope) { GymSnackbar(snackbarHostState, snackbarScope) }
 
+    CompositionLocalProvider(LocalSnackbar provides snackbar) {
     Scaffold(
         containerColor = Gym.colors.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (current in Routes.withBottomBar) {
                 BottomBar(
@@ -100,13 +111,19 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
                     onPickRoutine = { picking = true },
                 )
             }
-            composable(Routes.PLAN) { PlanScreen(onOpenRoutine = { nav.navigate(Routes.dayEdit(it)) }) }
+            composable(Routes.PLAN) {
+                PlanScreen(
+                    onOpenRoutine = { nav.navigate(Routes.dayEdit(it)) },
+                    onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                )
+            }
             composable(Routes.STATS) {
                 StatsScreen(
                     onOpenHistory = { nav.navigate(Routes.HISTORY) },
                     onOpenSession = { nav.navigate(Routes.session(it)) },
                     onOpenExerciseStats = { nav.navigate(Routes.exerciseStats(it)) },
                     onOpenBody = { nav.navigate(Routes.BODY) },
+                    onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                 )
             }
             composable(Routes.BODY) {
@@ -127,7 +144,12 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
                 ExerciseStatsScreen(id, onBack = { nav.popBackStack() },
                     onOpenHistory = { nav.navigate(Routes.exerciseHistory(id)) })
             }
-            composable(Routes.EXERCISES) { ExerciseListScreen(onOpen = { nav.navigate(Routes.exerciseEdit(it)) }) }
+            composable(Routes.EXERCISES) {
+                ExerciseListScreen(
+                    onOpen = { nav.navigate(Routes.exerciseEdit(it)) },
+                    onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                )
+            }
             composable(Routes.EXERCISE_EDIT, listOf(navArgument("exerciseId") { type = NavType.LongType })) { entry ->
                 ExerciseEditScreen(entry.arguments!!.getLong("exerciseId"), onBack = { nav.popBackStack() },
                     onHistory = { nav.navigate(Routes.exerciseHistory(it)) })
@@ -144,6 +166,7 @@ fun AppNavHost(nav: NavHostController = rememberNavController()) {
                 })
             }
         }
+    }
     }
     if (picking) RoutinePickerSheet(days, onPick = { id -> picking = false; start.startDay(id, openWorkout) },
         onDismiss = { picking = false })

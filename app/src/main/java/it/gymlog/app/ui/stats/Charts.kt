@@ -23,6 +23,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import it.gymlog.app.data.db.Muscle
 import it.gymlog.app.ui.common.formatKg
@@ -40,7 +44,13 @@ fun VolumeBarChart(points: List<Pair<LocalDate, Double>>, modifier: Modifier = M
     val fmt = DateTimeFormatter.ofPattern("d/M", Locale.ITALIAN)
     Row(modifier.fillMaxWidth().height(180.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         points.forEachIndexed { index, (week, volume) ->
-            Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                Modifier.weight(1f).fillMaxHeight().semantics(mergeDescendants = true) {
+                    contentDescription = "Settimana del ${week.format(fmt)}: " +
+                        if (volume > 0) "${formatKg(volume)} kg di volume" else "nessun dato"
+                },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text(if (volume > 0) compactKg(volume) else "", style = MaterialTheme.typography.labelSmall,
                     color = c.textSecondary, maxLines = 1)
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
@@ -67,7 +77,13 @@ fun MuscleSetBars(items: List<Pair<Muscle, Int>>) {
     val max = items.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items.forEach { (muscle, count) ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.semantics(mergeDescendants = true) {
+                    contentDescription = "${muscle.label}: $count serie"
+                },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 Text(muscle.label, color = c.textSecondary, modifier = Modifier.width(132.dp),
                     style = MaterialTheme.typography.bodySmall, maxLines = 1)
                 Box(Modifier.weight(1f).height(16.dp).clip(RoundedCornerShape(8.dp)).background(c.raised)) {
@@ -82,8 +98,16 @@ fun MuscleSetBars(items: List<Pair<Muscle, Int>>) {
 
 /** Linea compatta di un andamento (senza assi): valori in ordine cronologico. */
 @Composable
-fun Sparkline(values: List<Double>, modifier: Modifier = Modifier, color: Color = Gym.colors.accent) {
-    Canvas(modifier) {
+fun Sparkline(
+    values: List<Double>,
+    modifier: Modifier = Modifier,
+    color: Color = Gym.colors.accent,
+    description: String? = null,
+) {
+    val m = if (description != null) {
+        modifier.semantics { contentDescription = description; role = Role.Image }
+    } else modifier
+    Canvas(m) {
         if (values.size < 2) return@Canvas
         val min = values.min()
         val max = values.max()

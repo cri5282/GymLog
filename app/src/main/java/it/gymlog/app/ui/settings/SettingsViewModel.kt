@@ -60,7 +60,11 @@ class SettingsViewModel(
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { repo.update { it.copy(themeMode = mode) } }
     fun setAccent(accent: Accent) = viewModelScope.launch { repo.update { it.copy(accent = accent) } }
     fun setKeepScreenOn(on: Boolean) = viewModelScope.launch { repo.update { it.copy(keepScreenOn = on) } }
-    fun setAutoWarmup(on: Boolean) = viewModelScope.launch { repo.update { it.copy(autoWarmup = on) } }
+    fun setShowExerciseChips(on: Boolean) = viewModelScope.launch { repo.update { it.copy(showExerciseChips = on) } }
+    fun setHaptics(on: Boolean) = viewModelScope.launch { repo.update { it.copy(haptics = on) } }
+    fun setDefaultRest(seconds: Int) = viewModelScope.launch {
+        repo.update { it.copy(defaultRestSeconds = seconds.coerceIn(15, 600)) }
+    }
     fun setSex(sex: Sex) = viewModelScope.launch { repo.update { it.copy(sex = sex) } }
     fun setHeight(cm: Double?) = viewModelScope.launch { repo.update { it.copy(heightCm = cm?.takeIf { v -> v in 100.0..250.0 }) } }
     fun setBirthYear(year: Int?) = viewModelScope.launch {

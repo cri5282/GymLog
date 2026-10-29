@@ -1,7 +1,9 @@
 package it.gymlog.app.timer
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RestTimerTest {
@@ -60,10 +62,36 @@ class RestTimerTest {
         assertEquals(30_000L, timer.state.value.endAtMillis)
     }
 
+    @Test fun pause_freezesTimeAndResumeContinues() {
+        timer.start(120)
+        now = 30_000
+        timer.pause()
+        assertTrue(timer.state.value.isPaused)
+        assertNull(timer.state.value.endAtMillis)
+        assertEquals(90, timer.state.value.remainingSeconds(90_000))
+        now = 50_000
+        timer.resume()
+        assertFalse(timer.state.value.isPaused)
+        assertEquals(90, timer.state.value.remainingSeconds(now))
+        now = 140_000
+        assertEquals(0, timer.state.value.remainingSeconds(now))
+    }
+
+    @Test fun addSeconds_whilePaused_changesRemaining() {
+        timer.start(60)
+        now = 10_000
+        timer.pause()
+        timer.addSeconds(30)
+        assertEquals(80, timer.state.value.remainingSeconds(now))
+        timer.addSeconds(-100)
+        assertNull(timer.state.value.endAtMillis)
+    }
+
     @Test fun skip_clearsState() {
         timer.start(120)
         timer.skip()
         assertNull(timer.state.value.endAtMillis)
+        assertFalse(timer.state.value.isActive)
         assertEquals(0, timer.state.value.remainingSeconds(0))
         assertEquals(1, stopped)
     }

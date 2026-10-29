@@ -19,12 +19,16 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.MonitorWeight
 import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -53,17 +57,19 @@ fun StatsScreen(
     onOpenSession: (Long) -> Unit,
     onOpenExerciseStats: (Long) -> Unit,
     onOpenBody: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val vm = appViewModel { StatsViewModel(it.workouts, it.settings) }
     LifecycleResumeEffect(Unit) { vm.refreshDay(); onPauseOrDispose {} }
     val s by vm.state.collectAsStateWithLifecycle()
     val c = Gym.colors
+    var volumeData by remember { mutableStateOf(false) }
     if (s.loading) return
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenHeader("Statistiche", "Progressi e storico") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RoundIconButton(Icons.Rounded.MonitorWeight, "Corpo e misure", onOpenBody)
                 RoundIconButton(Icons.Rounded.History, "Storico", onOpenHistory)
+                RoundIconButton(Icons.Rounded.Settings, "Impostazioni", onOpenSettings)
             }
         }
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -88,6 +94,19 @@ fun StatsScreen(
                     val last = s.weeklyVolume.lastOrNull()?.second ?: 0.0
                     Text("Questa settimana: ${formatKg(last)} kg", color = c.accent,
                         style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+                    TextButton(onClick = { volumeData = !volumeData }) {
+                        Text(if (volumeData) "Nascondi dati" else "Mostra dati")
+                    }
+                    if (volumeData) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            s.weeklyVolume.forEach { (week, volume) ->
+                                Row(Modifier.fillMaxWidth()) {
+                                    Text(formatDate(week), color = c.textSecondary, modifier = Modifier.weight(1f))
+                                    Text("${formatKg(volume)} kg", color = c.text, style = GymType.number)
+                                }
+                            }
+                        }
+                    }
                 }
                 GymCard {
                     Text("Serie per muscolo – questa settimana", color = c.textSecondary,

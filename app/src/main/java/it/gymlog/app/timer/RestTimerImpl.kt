@@ -24,6 +24,12 @@ class RestTimerImpl(
 
     override fun addSeconds(seconds: Int) {
         val s = _state.value
+        if (s.isPaused) {
+            val remaining = (s.pausedRemainingSeconds ?: 0) + seconds
+            if (remaining <= 0) { skip(); return }
+            _state.value = s.copy(pausedRemainingSeconds = remaining, totalSeconds = maxOf(0, s.totalSeconds + seconds))
+            return
+        }
         val end = s.endAtMillis ?: return
         val now = clock()
         if (seconds < 0) {
@@ -38,6 +44,22 @@ class RestTimerImpl(
             else TimerState(end + seconds * 1000L, maxOf(0, s.totalSeconds + seconds))
             onActive()
         }
+    }
+
+    override fun pause() {
+        val s = _state.value
+        if (!s.isActive || s.isPaused) return
+        val remaining = s.remainingSeconds(clock())
+        if (remaining <= 0) { skip(); return }
+        _state.value = TimerState(totalSeconds = s.totalSeconds, pausedRemainingSeconds = remaining)
+    }
+
+    override fun resume() {
+        val s = _state.value
+        val remaining = s.pausedRemainingSeconds ?: return
+        if (remaining <= 0) { skip(); return }
+        _state.value = TimerState(endAtMillis = clock() + remaining * 1000L, totalSeconds = s.totalSeconds)
+        onActive()
     }
 
     override fun skip() {

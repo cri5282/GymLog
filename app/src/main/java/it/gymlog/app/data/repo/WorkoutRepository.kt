@@ -16,7 +16,6 @@ import it.gymlog.app.domain.SetDraft
 import it.gymlog.app.domain.Target
 import it.gymlog.app.domain.prefill
 import it.gymlog.app.domain.suggestLoad
-import it.gymlog.app.domain.warmupSets
 import kotlinx.coroutines.flow.Flow
 
 data class PlannedExercise(
@@ -89,7 +88,6 @@ class WorkoutRepository(
         val session = dao.getSession(sessionId) ?: return emptyList()
         val current = settings.current()
         val step = current.defaultLoadStepKg
-        val autoWarmup = current.autoWarmup
         val done = dao.getSets(sessionId)
         val dayExercises = session.routineDayId?.let { db.programDao().getDayExercises(it) }.orEmpty()
 
@@ -108,7 +106,7 @@ class WorkoutRepository(
                     used += substitute
                     result += planned(
                         sessionId, details, i, target, r.restSeconds, step, groups.getValue(substitute),
-                        supersetGroup = r.supersetGroup, autoWarmup = autoWarmup,
+                        supersetGroup = r.supersetGroup,
                     )
                     return@forEachIndexed
                 }
@@ -116,17 +114,17 @@ class WorkoutRepository(
             used += original
             result += planned(
                 sessionId, re.exercise, i, target, r.restSeconds, step, groups[original].orEmpty(),
-                supersetGroup = r.supersetGroup, autoWarmup = autoWarmup,
+                supersetGroup = r.supersetGroup,
             )
         }
         for ((key, sets) in groups.entries.filter { it.key !in used }.sortedBy { it.key.first }) {
             val details = db.exerciseDao().getWithDetails(key.second) ?: continue
-            result += planned(sessionId, details, key.first, null, DEFAULT_REST_SECONDS, step, sets, autoWarmup = autoWarmup)
+            result += planned(sessionId, details, key.first, null, current.defaultRestSeconds, step, sets)
         }
         var nextOrder = (result.maxOfOrNull { it.order } ?: -1) + 1
         for (id in extraExerciseIds) {
             val details = db.exerciseDao().getWithDetails(id) ?: continue
-            result += planned(sessionId, details, nextOrder++, null, DEFAULT_REST_SECONDS, step, emptyList(), autoWarmup = autoWarmup)
+            result += planned(sessionId, details, nextOrder++, null, current.defaultRestSeconds, step, emptyList())
         }
         return result
     }
@@ -141,25 +139,21 @@ class WorkoutRepository(
         val done = dao.getSets(sessionId).filter { it.exerciseOrder == order && it.exerciseId == exerciseId }
         return planned(
             sessionId, details, order, target, restSeconds, current.defaultLoadStepKg, done,
-            supersetGroup = supersetGroup, autoWarmup = current.autoWarmup,
+            supersetGroup = supersetGroup,
         )
     }
 
     private suspend fun planned(
         sessionId: Long, exercise: ExerciseWithDetails, order: Int, target: Target?, rest: Int,
-        defaultStep: Double, done: List<SetEntry>, supersetGroup: Int? = null, autoWarmup: Boolean = true,
+        defaultStep: Double, done: List<SetEntry>, supersetGroup: Int? = null,
     ): PlannedExercise {
         val last = dao.lastFinishedSetsFor(exercise.exercise.id, sessionId).map { it.toDraft() }
         val working = last.filter { it.type != SetType.WARMUP }
         val targetSets = target?.sets ?: working.count { it.type == SetType.WORKING }.takeIf { it > 0 } ?: 3
         val step = exercise.exercise.loadStepKg ?: defaultStep
-        val top = working.filter { it.type == SetType.WORKING }
-            .maxOfOrNull { maxOf(it.weightKg, it.weightKgR ?: it.weightKg) } ?: 0.0
-        // Le serie di riscaldamento si ricalcolano dai carichi dell'ultima volta a ogni nuovo allenamento.
-        val warmups = if (autoWarmup && working.isNotEmpty()) warmupSets(top, step, exercise.exercise.single) else emptyList()
         return PlannedExercise(
             exercise = exercise, order = order, target = target, restSeconds = rest,
-            prefill = warmups + prefill(working, targetSets),
+            prefill = prefill(working, targetSets),
             suggestedKg = target?.let { suggestLoad(working, it, step) },
             lastTime = working, done = done.sortedBy { it.setIndex },
             bestKg = dao.bestWeight(exercise.exercise.id),
@@ -181,6 +175,8 @@ class WorkoutRepository(
     suspend fun getSet(id: Long): SetEntry? = dao.getSet(id)
     suspend fun updateSet(set: SetEntry) = dao.updateSet(set)
     suspend fun deleteSet(set: SetEntry) = dao.deleteSet(set)
+    /** Reinserisce una serie rimossa conservandone l'id (usato da "Annulla"). */
+    suspend fun restoreSet(set: SetEntry) = dao.insertSet(set)
     suspend fun deleteSession(session: WorkoutSession) = dao.deleteSession(session)
 
     fun observeStatSets(): Flow<List<StatSet>> = dao.observeStatSets()

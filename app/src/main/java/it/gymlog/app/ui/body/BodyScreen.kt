@@ -130,7 +130,13 @@ fun BodyScreen(onBack: () -> Unit, onOpenSettings: () -> Unit) {
             item {
                 GymCard {
                     Text("Peso e media a 7 giorni", color = c.textSecondary, modifier = Modifier.padding(bottom = 8.dp))
-                    Sparkline(state.movingAverage.map { it.second }, Modifier.fillMaxWidth().height(120.dp))
+                    Sparkline(
+                        state.movingAverage.map { it.second },
+                        Modifier.fillMaxWidth().height(120.dp),
+                        description = "Andamento del peso corporeo con media a 7 giorni, " +
+                            "minimo ${formatKg(state.movingAverage.minOf { it.second })} kg, " +
+                            "massimo ${formatKg(state.movingAverage.maxOf { it.second })} kg",
+                    )
                     Row(Modifier.padding(top = 4.dp)) {
                         Text("min ${formatKg(state.movingAverage.minOf { it.second })} kg", style = GymType.label, color = c.textSecondary)
                         Spacer(Modifier.weight(1f))

@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -38,11 +39,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import it.gymlog.app.data.db.SetType
+import it.gymlog.app.ui.common.ConfirmDialog
 import it.gymlog.app.ui.common.formatKg
 import it.gymlog.app.ui.common.parseDecimal
 import it.gymlog.app.ui.design.CircleCheck
@@ -64,6 +69,8 @@ class RowActions(
     val confirm: () -> Unit,
     val select: () -> Unit,
     val unconfirm: () -> Unit = {},
+    val remove: () -> Unit = {},
+    val duplicate: () -> Unit = {},
     val weightStepR: (Int) -> Unit = {},
     val setWeightR: (Double) -> Unit = {},
     val repsStepR: (Int) -> Unit = {},
@@ -77,7 +84,7 @@ fun SetTable(rows: List<RowState>, active: Int?, actions: (Int) -> RowActions, o
     val c = Gym.colors
     GymCard {
         Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("#", style = GymType.label, color = c.textSecondary, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
+            Text("#", style = GymType.label, color = c.textSecondary, modifier = Modifier.width(48.dp), textAlign = TextAlign.Center)
             Text(if (single) "KG  SX / DX" else "KG", style = GymType.label, color = c.textSecondary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text(if (single) "REPS  SX / DX" else "REPS", style = GymType.label, color = c.textSecondary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text("✓", style = GymType.label, color = c.textSecondary, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
@@ -100,7 +107,10 @@ fun SetTable(rows: List<RowState>, active: Int?, actions: (Int) -> RowActions, o
 }
 
 @Composable
-private fun TypeBadge(number: Int, type: SetType, onSelect: (SetType) -> Unit) {
+private fun TypeBadge(
+    number: Int, type: SetType, onSelect: (SetType) -> Unit,
+    onDuplicate: () -> Unit, onRemove: () -> Unit,
+) {
     val c = Gym.colors
     var open by remember { mutableStateOf(false) }
     val (text, color) = when (type) {
@@ -109,12 +119,21 @@ private fun TypeBadge(number: Int, type: SetType, onSelect: (SetType) -> Unit) {
         SetType.DROP -> "D" to c.drop
         SetType.FAILURE -> "C" to c.error
     }
-    Box(Modifier.width(40.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.width(48.dp), contentAlignment = Alignment.Center) {
         Box(
-            Modifier.size(32.dp).clip(CircleShape).background(c.raised).clickable { open = true },
+            Modifier.size(48.dp).clip(CircleShape)
+                .clickable(role = Role.Button, onClickLabel = "Azioni serie") { open = true }
+                .semantics(mergeDescendants = true) { contentDescription = "Serie $number, ${type.label}. Azioni serie" },
             contentAlignment = Alignment.Center,
-        ) { Text(text, color = color, fontWeight = FontWeight.Bold) }
+        ) {
+            Box(Modifier.size(32.dp).clip(CircleShape).background(c.raised), contentAlignment = Alignment.Center) {
+                Text(text, color = color, fontWeight = FontWeight.Bold)
+            }
+        }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text("Duplica serie") }, onClick = { onDuplicate(); open = false })
+            DropdownMenuItem(text = { Text("Rimuovi serie") }, onClick = { onRemove(); open = false })
+            HorizontalDivider(color = c.border.copy(alpha = 0.5f))
             SetType.entries.forEach { t -> DropdownMenuItem(text = { Text(t.label) }, onClick = { onSelect(t); open = false }) }
         }
     }
@@ -123,12 +142,14 @@ private fun TypeBadge(number: Int, type: SetType, onSelect: (SetType) -> Unit) {
 @Composable
 private fun CompactRow(workingNumber: Int, row: RowState, a: RowActions) {
     val c = Gym.colors
+    var confirmRemove by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = a.select)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClickLabel = "Modifica serie", onClick = a.select)
             .padding(vertical = 8.dp).alpha(if (row.done) 1f else 0.6f),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TypeBadge(workingNumber, row.type, a.setType)
+        TypeBadge(workingNumber, row.type, a.setType, a.duplicate, { confirmRemove = true })
         val split = row.weightKgR != null
         Text(
             if (split) "${formatKg(row.weightKg)} / ${formatKg(row.weightKgR!!)}" else formatKg(row.weightKg),
@@ -145,12 +166,22 @@ private fun CompactRow(workingNumber: Int, row: RowState, a: RowActions) {
         }
         Box(Modifier.width(56.dp), contentAlignment = Alignment.Center) { CircleCheck(row.done, if (row.done) a.unconfirm else a.confirm) }
     }
+    if (confirmRemove) {
+        ConfirmDialog(
+            "Rimuovere la serie?",
+            if (row.done) "La serie è già salvata e verrà eliminata dall'allenamento." else "La serie verrà rimossa dalla tabella.",
+            "Rimuovi",
+            onConfirm = { confirmRemove = false; a.remove() },
+            onDismiss = { confirmRemove = false },
+        )
+    }
 }
 
 @Composable
 private fun ActiveRow(workingNumber: Int, row: RowState, a: RowActions) {
     val c = Gym.colors
     var showNote by remember { mutableStateOf(row.notes.isNotEmpty()) }
+    var confirmRemove by remember { mutableStateOf(false) }
     val split = row.weightKgR != null
     val noteButton: @Composable () -> Unit = {
         IconButton(onClick = { showNote = !showNote }) {
@@ -164,9 +195,12 @@ private fun ActiveRow(workingNumber: Int, row: RowState, a: RowActions) {
     ) {
         // Riga 1: tipo/numero, etichetta, conferma. Poi kg e reps (con RIR) per ogni lato; infine la nota.
         Row(Modifier.padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            TypeBadge(workingNumber, row.type, a.setType)
+            TypeBadge(workingNumber, row.type, a.setType, a.duplicate, { confirmRemove = true })
             Text(if (row.type == SetType.WORKING) "Serie $workingNumber" else row.type.label,
                 style = MaterialTheme.typography.titleMedium, color = c.text, modifier = Modifier.weight(1f))
+            IconButton(onClick = { confirmRemove = true }) {
+                Icon(Icons.Rounded.Delete, "Rimuovi serie $workingNumber", tint = c.textSecondary)
+            }
             Box(Modifier.width(56.dp), contentAlignment = Alignment.Center) { CircleCheck(row.done, if (row.done) a.unconfirm else a.confirm) }
         }
         SideEditor(
@@ -185,6 +219,15 @@ private fun ActiveRow(workingNumber: Int, row: RowState, a: RowActions) {
             OutlinedTextField(row.notes, a.setNote, label = { Text("Nota") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp))
         }
+    }
+    if (confirmRemove) {
+        ConfirmDialog(
+            "Rimuovere la serie?",
+            if (row.done) "La serie è già salvata e verrà eliminata dall'allenamento." else "La serie verrà rimossa dalla tabella.",
+            "Rimuovi",
+            onConfirm = { confirmRemove = false; a.remove() },
+            onDismiss = { confirmRemove = false },
+        )
     }
 }
 

@@ -8,7 +8,7 @@ L'app unisce in un unico posto scheda, diario degli allenamenti, timer di recupe
 misurazioni corporee e backup. Non richiede un account e non ha bisogno di una connessione a
 Internet per funzionare.
 
-**Versione:** 1.3.0 (`versionCode` 5) · **Android:** 8.0+ (API 26) · **Lingua:** italiano · **Dati:** solo in locale
+**Versione:** 1.4.0 (`versionCode` 7) · **Android:** 8.0+ (API 26) · **Lingua:** italiano · **Dati:** solo in locale
 
 ---
 
@@ -65,21 +65,26 @@ La schermata iniziale risponde alla domanda "che cosa devo fare oggi?".
 La registrazione è pensata per essere veloce tra una serie e l'altra.
 
 - Una pagina per esercizio, con swipe orizzontale e barra di avanzamento.
-- Tabella delle serie con kg, ripetizioni, RIR e tipo di serie (riscaldamento, allenante, drop,
-  cedimento).
+- Tabella delle serie con kg, ripetizioni, RIR e tipo di serie modificabile (riscaldamento,
+  allenante, drop, cedimento).
 - **Precompilazione** dei carichi e delle ripetizioni dall'ultima sessione dello stesso esercizio.
-- **Serie di riscaldamento automatiche** calcolate dal miglior carico dell'ultima volta.
+- Aggiunta e rimozione delle serie; le serie di riscaldamento non vengono calcolate automaticamente.
+- Menu della serie per duplicarla, rimuoverla o cambiarne il tipo; la rimozione chiede conferma e
+  può essere annullata dalla snackbar.
 - **Suggerimento di progressione** con doppia progressione: quando tutte le serie raggiungono il
   limite alto di ripetizioni con RIR sufficientemente basso, l'app propone il carico successivo.
 - Conferma della serie con ✓, avvio automatico del recupero e possibilità di annullare o correggere
   una serie già salvata.
+- Barra degli esercizi per saltare rapidamente da una pagina all'altra e impostazioni rapide
+  (timer, schermo acceso, chip e feedback aptico) senza uscire dall'allenamento.
 - **Esercizi unilaterali** con kg, ripetizioni e RIR separati per lato sinistro e destro.
 - **Superserie**: gli esercizi con lo stesso numero di gruppo si alternano e il recupero parte solo
   dopo l'ultimo esercizio del gruppo ancora da completare.
 - Aggiunta di un esercizio estemporaneo o sostituzione dell'esercizio corrente per la sola sessione.
 - Note per serie ed esercizio, foto dell'esercizio scattate durante l'allenamento e modifica rapida
   della scheda dell'esercizio.
-- Timer di recupero con aggiunta o sottrazione di 15 secondi e salto.
+- Timer di recupero con pausa/ripresa, aggiunta o sottrazione di 15 secondi, modifica del tempo
+  tramite preset o secondi e salto.
 - Il timer continua a funzionare con l'app in background o lo schermo spento tramite un servizio in
   primo piano, una notifica persistente e un wake lock; a fine recupero arriva una notifica con
   suono e/o vibrazione.
@@ -145,7 +150,8 @@ Sezione facoltativa per seguire la composizione corporea.
 - **Aspetto:** tema sistema/chiaro/scuro, colore d'accento (verde, blu, viola, arancione, rosso,
   ciano) e icona dell'app (classica, scura, accento).
 - **Allenamento:** passo di aumento del carico (0,25–20 kg), formula del 1RM (Epley o Brzycki),
-  riscaldamento automatico, schermo sempre acceso, suono e vibrazione del timer.
+  recupero predefinito, schermo sempre acceso, suono e vibrazione del timer.
+- **Accessibilità:** chip degli esercizi in allenamento e feedback aptico.
 - **Corpo:** altezza, anno di nascita e sesso, usati per grasso stimato e FFMI.
 - **Dati:** importazione da Hevy, esportazione CSV di tutte le serie, export/ripristino del backup
   completo e backup automatico settimanale in una cartella scelta.
@@ -153,6 +159,15 @@ Sezione facoltativa per seguire la composizione corporea.
 <p align="center">
   <img src="docs/screenshots/06-impostazioni.png" width="300" alt="Schermata Impostazioni di GymLog">
 </p>
+
+### Accessibilità
+
+- Controlli principali con area di tocco di almeno 48 dp, etichette TalkBack, ruoli e stato
+  selezionato per tab, chip e switch.
+- Titoli e sezioni annunciati come intestazioni; grafici con descrizione testuale e valori
+  consultabili con "Mostra dati".
+- La barra inferiore passa a sole icone quando il testo di sistema è molto grande, mantenendo le
+  descrizioni per TalkBack.
 
 ### Widget e notifiche
 
@@ -228,9 +243,9 @@ GymLog è un progetto Android a modulo singolo, organizzato per responsabilità:
   inviano azioni a quest'ultimo. I ViewModel usano i repository, non i DAO direttamente.
 - **Flussi reattivi:** Room e DataStore emettono `Flow`; lo stato della UI si aggiorna da solo dopo
   una modifica al database o alle preferenze.
-- **Navigazione:** `AppNavHost` definisce le rotte con Navigation Compose. La barra inferiore è
-  visibile solo sulle schermate principali (Oggi, Piano, Statistiche, Corpo, Esercizi); le schermate
-  di dettaglio e l'allenamento hanno navigazione propria.
+- **Navigazione:** `AppNavHost` definisce le rotte con Navigation Compose. La barra inferiore ha
+  cinque voci (Oggi, Piano, Start, Statistiche, Esercizi); Corpo si apre da Statistiche e le
+  schermate di dettaglio e l'allenamento hanno navigazione propria.
 - **Avvio:** `GymLogApp` crea `AppContainer`, applica l'icona scelta e, se il database è vuoto,
   inserisce la libreria e la scheda predefinita (`SeedData`). Un backup automatico viene eseguito
   se sono passati almeno 7 giorni dall'ultimo.
@@ -280,18 +295,12 @@ di partenza. Se le serie allenanti sono meno di quelle previste dalla scheda, ve
 dell'ultima serie allenante. In questo modo la tabella è già pronta e l'utente deve correggere solo
 ciò che cambia.
 
-### Riscaldamento automatico
+### Serie di riscaldamento
 
-Se l'opzione è attiva, l'app calcola tre serie di riscaldamento dal miglior carico allenante
-dell'ultima volta:
-
-- 40% × 8 ripetizioni
-- 60% × 5 ripetizioni
-- 80% × 3 ripetizioni
-
-I carichi vengono arrotondati al passo dell'esercizio (o al passo predefinito) e le serie uguali o
-superiori al carico di lavoro vengono scartate. Per gli esercizi unilaterali il lato destro parte
-uguale al sinistro.
+Le serie di riscaldamento non vengono generate automaticamente. Si possono aggiungere con
+**Aggiungi serie** e assegnare il tipo **Riscaldamento** dal menu del numero di serie; non entrano
+nella numerazione delle serie allenanti, nel volume, nei record o nella precompilazione della
+sessione successiva.
 
 ### Doppia progressione
 
@@ -405,9 +414,9 @@ scripts/build-apk.sh
 ```
 
 `scripts/build-apk.sh` esegue `clean`, i test e `assembleRelease`, verifica la firma e copia il file
-in `dist/GymLog-<versione>.apk`. La suite attuale conta **183 test JVM**.
+in `dist/GymLog-<versione>.apk`. La suite attuale conta **186 test JVM**.
 
-L'APK pronto per l'installazione è `dist/GymLog-1.3.0.apk`. Per installarlo e aggiornarlo sul
+L'APK pronto per l'installazione è `dist/GymLog-1.4.0.apk`. Per installarlo e aggiornarlo sul
 telefono segui [INSTALLA.md](INSTALLA.md).
 
 ### Firma
@@ -468,7 +477,7 @@ GymLog/
 
 ## Documentazione collegata
 
-- [INSTALLA.md](INSTALLA.md) – installazione, aggiornamenti, backup e checklist della versione 1.3.0.
+- [INSTALLA.md](INSTALLA.md) – installazione, aggiornamenti, backup e checklist della versione 1.4.0.
 - [docs/superpowers/specs](docs/superpowers/specs) – specifiche di design del progetto.
 
 ## Licenza

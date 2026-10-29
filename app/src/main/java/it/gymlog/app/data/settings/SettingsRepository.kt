@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
@@ -42,8 +43,12 @@ data class Settings(
     val themeMode: ThemeMode = ThemeMode.DARK,
     val accent: Accent = Accent.GREEN,
     val keepScreenOn: Boolean = true,
-    /** Serie di riscaldamento calcolate dai carichi dell'ultima volta. */
-    val autoWarmup: Boolean = true,
+    /** Mostra la barra degli esercizi sopra la tabella serie durante l'allenamento. */
+    val showExerciseChips: Boolean = true,
+    /** Feedback aptico su conferma e rimozione di una serie. */
+    val haptics: Boolean = true,
+    /** Recupero predefinito per esercizi liberi e aggiunti oggi. */
+    val defaultRestSeconds: Int = 120,
     /** Dati facoltativi per composizione corporea e FFMI. */
     val heightCm: Double? = null,
     val birthYear: Int? = null,
@@ -55,11 +60,7 @@ data class Settings(
     val appIcon: AppIcon = AppIcon.CLASSIC,
 )
 
-class SettingsRepository(
-    private val dataStore: DataStore<Preferences>,
-    /** Valori usati quando una chiave non è ancora stata scritta (i test disattivano il riscaldamento). */
-    private val defaults: Settings = Settings(),
-) {
+class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     private object Keys {
         val step = doublePreferencesKey("default_load_step_kg")
         val formula = stringPreferencesKey("one_rm_formula")
@@ -68,7 +69,9 @@ class SettingsRepository(
         val themeMode = stringPreferencesKey("theme_mode")
         val accent = stringPreferencesKey("accent")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
-        val autoWarmup = booleanPreferencesKey("auto_warmup")
+        val showExerciseChips = booleanPreferencesKey("show_exercise_chips")
+        val haptics = booleanPreferencesKey("haptics")
+        val defaultRestSeconds = intPreferencesKey("default_rest_seconds")
         val height = doublePreferencesKey("height_cm")
         val birthYear = longPreferencesKey("birth_year")
         val sex = stringPreferencesKey("sex")
@@ -82,7 +85,7 @@ class SettingsRepository(
         this[key]?.let { v -> enumValues<E>().firstOrNull { it.name == v } } ?: default
 
     private fun read(p: Preferences): Settings {
-        val d = defaults
+        val d = Settings()
         return Settings(
             defaultLoadStepKg = p[Keys.step] ?: d.defaultLoadStepKg,
             oneRmFormula = p.enumOr(Keys.formula, d.oneRmFormula),
@@ -91,7 +94,9 @@ class SettingsRepository(
             themeMode = p.enumOr(Keys.themeMode, d.themeMode),
             accent = p.enumOr(Keys.accent, d.accent),
             keepScreenOn = p[Keys.keepScreenOn] ?: d.keepScreenOn,
-            autoWarmup = p[Keys.autoWarmup] ?: d.autoWarmup,
+            showExerciseChips = p[Keys.showExerciseChips] ?: d.showExerciseChips,
+            haptics = p[Keys.haptics] ?: d.haptics,
+            defaultRestSeconds = (p[Keys.defaultRestSeconds] ?: d.defaultRestSeconds).coerceIn(15, 600),
             heightCm = p[Keys.height]?.takeIf { it > 0 },
             birthYear = p[Keys.birthYear]?.takeIf { it > 0 }?.toInt(),
             sex = p.enumOr(Keys.sex, d.sex),
@@ -116,7 +121,9 @@ class SettingsRepository(
             p[Keys.themeMode] = next.themeMode.name
             p[Keys.accent] = next.accent.name
             p[Keys.keepScreenOn] = next.keepScreenOn
-            p[Keys.autoWarmup] = next.autoWarmup
+            p[Keys.showExerciseChips] = next.showExerciseChips
+            p[Keys.haptics] = next.haptics
+            p[Keys.defaultRestSeconds] = next.defaultRestSeconds.coerceIn(15, 600)
             p[Keys.height] = next.heightCm ?: 0.0
             p[Keys.birthYear] = next.birthYear?.toLong() ?: 0L
             p[Keys.sex] = next.sex.name

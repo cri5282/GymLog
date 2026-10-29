@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.SelfImprovement
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,13 +51,14 @@ import it.gymlog.app.ui.design.GymCard
 import it.gymlog.app.ui.design.GymChip
 import it.gymlog.app.ui.design.GymType
 import it.gymlog.app.ui.design.IconBadge
+import it.gymlog.app.ui.design.RoundIconButton
 import it.gymlog.app.ui.design.ScreenHeader
 import it.gymlog.app.ui.design.SectionLabel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlanScreen(onOpenRoutine: (Long) -> Unit) {
+fun PlanScreen(onOpenRoutine: (Long) -> Unit, onOpenSettings: () -> Unit) {
     val vm = appViewModel { PlanViewModel(it.programs) }
     val s by vm.state.collectAsStateWithLifecycle()
     val c = Gym.colors
@@ -87,7 +89,9 @@ fun PlanScreen(onOpenRoutine: (Long) -> Unit) {
 
     LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
         item {
-            ScreenHeader("Piano", null)
+            ScreenHeader("Piano", null) {
+                RoundIconButton(Icons.Rounded.Settings, "Impostazioni", onOpenSettings)
+            }
             GymCard(Modifier.padding(horizontal = 16.dp), onClick = { programsOpen = true }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {

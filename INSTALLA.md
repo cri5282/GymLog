@@ -2,7 +2,7 @@
 
 ## 1. Copiare l'APK sul telefono
 
-Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.3.0.apk`. Scegli uno di questi modi:
+Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.4.0.apk`. Scegli uno di questi modi:
 
 - **Cavo USB:** collega il telefono, sul telefono scegli "Trasferimento file", copia l'APK nella cartella *Download*.
 - **Google Drive:** carica l'APK su Drive dal PC e scaricalo dal telefono con l'app Drive.
@@ -36,31 +36,25 @@ Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.3.0.apk`. Scegli uno d
 - Da **Impostazioni → Backup** puoi esportare tutto in uno zip e ripristinarlo in seguito.
   È disponibile anche il backup automatico settimanale in una cartella scelta.
 
-## Aggiornare alla 1.3.0 (backup, corpo e nuove statistiche)
+## Aggiornare alla 1.4.0 (accessibilità e Annulla)
 
-Installa `GymLog-1.3.0.apk` **sopra** la versione precedente, senza disinstallare: allenamenti,
-schede, foto e impostazioni restano. Al primo avvio viene applicata automaticamente la migrazione
-del database.
+Installa `GymLog-1.4.0.apk` **sopra** la versione precedente, senza disinstallare: allenamenti,
+schede, foto e impostazioni restano. La 1.4.0 include anche le novità della 1.3.1: niente
+riscaldamento automatico, rimozione delle serie con conferma e indici contigui.
 
 Checklist delle novità:
-- [ ] **Backup completo** in *Impostazioni*: database, foto e impostazioni in un unico zip.
-      Puoi anche scegliere una cartella per il backup automatico settimanale.
-- [ ] **Ripristino** da zip: chiede conferma e riavvia l'app. Prima di sostituire i file viene
-      salvata una copia di sicurezza del database.
-- [ ] **Esportazione CSV** di tutte le serie e **PDF/testo della scheda** dal Piano.
-- [ ] **Serie di riscaldamento automatiche** (40% × 8, 60% × 5, 80% × 3) calcolate dall'ultima
-      volta e messe all'inizio dell'esercizio. Si disattivano da *Impostazioni → Allenamento*.
-- [ ] **Esercizi unilaterali**: kg, reps e RIR separati per lato sinistro e destro.
-- [ ] **Superserie**: assegna lo stesso numero a più esercizi della scheda; il recupero parte
-      solo dopo l'ultimo esercizio del gruppo.
-- [ ] **Sezione Corpo** (facoltativa): peso, circonferenze, pliche, grasso corporeo stimato e FFMI.
-      Altezza, anno di nascita e sesso si impostano in *Impostazioni → Corpo*.
-- [ ] **Statistiche**: grafici di carico, 1RM e volume per esercizio, record recenti e divario
-      sinistro/destro.
-- [ ] **Icona dell'app** selezionabile (classica, scura, accento) e **widget** della home.
-- [ ] Un allenamento rimasto aperto da molte ore può essere ripreso senza falsare la durata,
-      oppure chiuso; se non ha serie viene eliminato.
-- [ ] Toccando ✓ su una serie già salvata la si può annullare e correggere.
+- [ ] Dopo aver rimosso una serie compare **Annulla** nella snackbar e il ripristino conserva
+      carico, ripetizioni, RIR e posizione.
+- [ ] Il **menu del numero di serie** permette di duplicare, rimuovere o cambiare tipo.
+- [ ] La barra degli **esercizi** sopra la tabella permette di saltare da una pagina all'altra
+      (si nasconde quando c'è un solo esercizio).
+- [ ] Il **timer** si può mettere in pausa, riprendere e impostare con i preset o i secondi.
+- [ ] Il menu ⋯ dell'allenamento apre le **impostazioni rapide** (timer, schermo acceso, chip,
+      feedback aptico).
+- [ ] La **barra inferiore** ha cinque voci: Oggi, Piano, Start, Statistiche, Esercizi; Corpo si
+      apre da Statistiche.
+- [ ] Con TalkBack i tab, le chip, gli switch e i grafici hanno etichette e descrizioni leggibili.
+- [ ] Con il testo di sistema molto grande la barra inferiore mostra solo le icone.
 
 ## 5. Backup della chiave di firma (importante)
 
@@ -77,8 +71,8 @@ nuova versione dovrai disinstallare l'app e perderai i dati.
 
 - [ ] L'app si installa e si apre, con la scheda di oggi in *Oggi*.
 - [ ] L'import del CSV di Hevy riporta circa 24 allenamenti.
-- [ ] In un allenamento (es. Push A) i carichi sono precompilati dall'ultima sessione e compaiono
-      le serie di riscaldamento (se attive).
+- [ ] In un allenamento (es. Push A) i carichi sono precompilati dall'ultima sessione e le serie
+      di riscaldamento non compaiono automaticamente.
 - [ ] Toccando ✓ parte il recupero; a schermo bloccato arrivano notifica e vibrazione a fine recupero.
 - [ ] Chiudendo l'app a metà allenamento (anche dal multitasking), riaprendola compare "Riprendi"
       con le serie già confermate.

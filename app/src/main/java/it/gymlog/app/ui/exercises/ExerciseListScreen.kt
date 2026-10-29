@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,6 +40,7 @@ import it.gymlog.app.ui.design.AccentPill
 import it.gymlog.app.ui.design.Gym
 import it.gymlog.app.ui.design.GymCard
 import it.gymlog.app.ui.design.GymChip
+import it.gymlog.app.ui.design.RoundIconButton
 import it.gymlog.app.ui.design.ScreenHeader
 import it.gymlog.app.ui.programs.ExerciseThumb
 
@@ -88,7 +90,7 @@ fun ExerciseCard(e: ExerciseWithDetails, onClick: () -> Unit) {
 }
 
 @Composable
-fun ExerciseListScreen(onOpen: (Long) -> Unit) {
+fun ExerciseListScreen(onOpen: (Long) -> Unit, onOpenSettings: () -> Unit) {
     val vm = appViewModel { ExerciseListViewModel(it.exercises) }
     val list by vm.exercises.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
@@ -97,7 +99,9 @@ fun ExerciseListScreen(onOpen: (Long) -> Unit) {
 
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
-            ScreenHeader("Esercizi", "${list.size} esercizi")
+            ScreenHeader("Esercizi", "${list.size} esercizi") {
+                RoundIconButton(Icons.Rounded.Settings, "Impostazioni", onOpenSettings)
+            }
             SearchField(query, { vm.query.value = it }, Modifier.padding(horizontal = 16.dp))
             MuscleFilter(muscle) { vm.muscle.value = it }
         }

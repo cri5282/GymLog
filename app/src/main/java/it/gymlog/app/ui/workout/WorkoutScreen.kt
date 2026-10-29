@@ -36,9 +36,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -50,6 +52,7 @@ import it.gymlog.app.domain.activeRowIndex
 import it.gymlog.app.domain.sessionProgress
 import it.gymlog.app.timer.RestTimer
 import it.gymlog.app.ui.common.ConfirmDialog
+import it.gymlog.app.ui.common.LocalSnackbar
 import it.gymlog.app.ui.common.appViewModel
 import it.gymlog.app.ui.design.EmptyState
 import it.gymlog.app.ui.design.Gym
@@ -74,9 +77,21 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
     var confirmFinish by remember { mutableStateOf(false) }
     var editingExercise by remember { mutableStateOf<Long?>(null) }
     var notesOpen by remember { mutableStateOf<String?>(null) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var restEditing by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     val pager = rememberPagerState { state.pages.size }
     val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbar.current
+    val haptic = LocalHapticFeedback.current
     val c = Gym.colors
+
+    LaunchedEffect(vm) {
+        vm.events.collect { event ->
+            when (event) {
+                is WorkoutEvent.RowRemoved -> snackbar?.showUndo(event.message) { vm.undoRemove() }
+            }
+        }
+    }
 
     // Schermo acceso finché la schermata è visibile (se attivo nelle impostazioni).
     val view = LocalView.current
@@ -109,7 +124,7 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
         return
     }
     val (done, total) = sessionProgress(state.pages.map { p -> p.rows.map { it.done } })
-    val timerVisible = timerState.endAtMillis != null
+    val timerVisible = timerState.isActive
     // Spazio in fondo alla pagina = altezza reale della barra del timer, così non copre l'ultima serie.
     var timerHeightPx by remember { mutableStateOf(0) }
     val density = LocalDensity.current
@@ -123,7 +138,15 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                 onClose = onExit, onFinish = { confirmFinish = true },
                 onAddExercise = { picker = Picker.ADD }, onReplaceExercise = { picker = Picker.REPLACE },
                 onEditExercise = { state.pages.getOrNull(pager.currentPage)?.planned?.exercise?.exercise?.id?.let { editingExercise = it } },
+                onOpenSettings = { settingsOpen = true },
             )
+            if (settings.showExerciseChips && state.pages.size > 1) {
+                ExerciseChips(
+                    pages = state.pages,
+                    current = pager.currentPage,
+                    onSelect = { index -> scope.launch { pager.animateScrollToPage(index) } },
+                )
+            }
             if (notificationsDenied) {
                 Surface(color = c.error.copy(alpha = 0.2f), onClick = { notificationsDenied = false }) {
                     Text("Senza notifiche il timer suona solo con l'app aperta. Tocca per chiudere.",
@@ -152,9 +175,17 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                                 setRir = { vm.setRir(index, row, it) },
                                 setType = { vm.setType(index, row, it) },
                                 setNote = { vm.setNote(index, row, it) },
-                                confirm = { vm.confirm(index, row) },
+                                confirm = {
+                                    if (settings.haptics) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    vm.confirm(index, row)
+                                },
                                 select = { vm.selectRow(index, row) },
                                 unconfirm = { vm.unconfirm(index, row) },
+                                remove = {
+                                    if (settings.haptics) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    vm.removeRow(index, row)
+                                },
+                                duplicate = { vm.duplicateRow(index, row) },
                                 weightStepR = { vm.changeWeight(index, row, it, right = true) },
                                 setWeightR = { vm.setWeight(index, row, it, right = true) },
                                 repsStepR = { vm.changeReps(index, row, it, right = true) },
@@ -170,12 +201,20 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                             camera.launch(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
                         },
                         onShowNotes = { notesOpen = page.planned.exercise.exercise.executionNotes },
+                        onEditRest = { restEditing = index to page.planned.restSeconds },
                     )
                 }
             }
         }
-        RestTimerBar(timerState, onAdjust = vm::addRestSeconds, onSkip = vm::skipRest,
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().onSizeChanged { timerHeightPx = it.height })
+        RestTimerBar(
+            state = timerState,
+            onAdjust = vm::addRestSeconds,
+            onSkip = vm::skipRest,
+            onPause = vm::pauseRest,
+            onResume = vm::resumeRest,
+            onSetDuration = vm::setRest,
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().onSizeChanged { timerHeightPx = it.height },
+        )
     }
 
     when (picker) {
@@ -215,5 +254,26 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
     if (confirmFinish) ConfirmDialog("Terminare l'allenamento?",
         "Le serie non confermate con ✓ non verranno salvate.", "Termina",
         onConfirm = { confirmFinish = false; vm.finish() }, onDismiss = { confirmFinish = false })
+    restEditing?.let { (page, initial) ->
+        RestDurationDialog(
+            initial = initial,
+            onDismiss = { restEditing = null },
+            onConfirm = { seconds ->
+                restEditing = null
+                vm.setExerciseRest(page, seconds)
+            },
+        )
+    }
+    if (settingsOpen) {
+        WorkoutSettingsSheet(
+            settings = settings,
+            onDismiss = { settingsOpen = false },
+            onTimerSound = { value -> scope.launch { container.settings.update { it.copy(timerSound = value) } } },
+            onTimerVibration = { value -> scope.launch { container.settings.update { it.copy(timerVibration = value) } } },
+            onKeepScreenOn = { value -> scope.launch { container.settings.update { it.copy(keepScreenOn = value) } } },
+            onShowExerciseChips = { value -> scope.launch { container.settings.update { it.copy(showExerciseChips = value) } } },
+            onHaptics = { value -> scope.launch { container.settings.update { it.copy(haptics = value) } } },
+        )
+    }
     state.recap?.let { RecapSheet(it, state.records, onClose = onExit) }
 }

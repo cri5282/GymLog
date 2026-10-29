@@ -13,10 +13,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
-import androidx.compose.material.icons.rounded.Accessibility
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.FitnessCenter
@@ -31,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,49 +43,65 @@ data class NavItem(val route: String, val label: String, val icon: ImageVector)
 val leftItems = listOf(NavItem(Routes.HOME, "Home", Icons.Rounded.Home), NavItem(Routes.PLAN, "Piano", Icons.Rounded.CalendarMonth))
 val rightItems = listOf(
     NavItem(Routes.STATS, "Statistiche", Icons.Rounded.BarChart),
-    NavItem(Routes.BODY, "Corpo", Icons.Rounded.Accessibility),
     NavItem(Routes.EXERCISES, "Esercizi", Icons.AutoMirrored.Rounded.FormatListBulleted),
 )
 
-/** Barra inferiore: due voci a sinistra, Start centrale, tre voci a destra. */
+/** Barra inferiore: due voci a sinistra, Start centrale, due voci a destra. */
 @Composable
 fun BottomBar(current: String?, resuming: Boolean, onNavigate: (String) -> Unit, onStart: () -> Unit) {
     val c = Gym.colors
+    val showLabels = LocalDensity.current.fontScale <= 1.3f
     Column(Modifier.fillMaxWidth().background(c.background)) {
         HorizontalDivider(color = c.border.copy(alpha = 0.5f))
         Row(Modifier.fillMaxWidth().navigationBarsPadding().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
-            leftItems.forEach { NavCell(it, current == it.route, onNavigate) }
+            leftItems.forEach { NavCell(it, current == it.route, showLabels, onNavigate) }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 val color = if (resuming) c.resume else c.accent
+                val label = if (resuming) "Riprendi" else "Start"
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.offset(y = (-14).dp)) {
                     Box(
                         Modifier.size(64.dp).shadow(10.dp, CircleShape, ambientColor = color, spotColor = color)
                             .background(color, CircleShape).border(4.dp, c.background, CircleShape)
-                            .clickable(onClick = onStart),
+                            .clickable(role = Role.Button, onClickLabel = "$label allenamento", onClick = onStart),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(if (resuming) Icons.Rounded.PlayArrow else Icons.Rounded.FitnessCenter,
-                            if (resuming) "Riprendi allenamento" else "Inizia allenamento", tint = c.onAccent,
-                            modifier = Modifier.size(30.dp))
+                        Icon(
+                            if (resuming) Icons.Rounded.PlayArrow else Icons.Rounded.FitnessCenter,
+                            if (showLabels) null else "$label allenamento",
+                            tint = c.onAccent, modifier = Modifier.size(30.dp),
+                        )
                     }
-                    Text(if (resuming) "Riprendi" else "Start", color = color, fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.labelMedium)
+                    if (showLabels) {
+                        Text(label, color = color, fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
-            rightItems.forEach { NavCell(it, current == it.route, onNavigate) }
+            rightItems.forEach { NavCell(it, current == it.route, showLabels, onNavigate) }
         }
     }
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.NavCell(item: NavItem, selected: Boolean, onNavigate: (String) -> Unit) {
-    val color = if (selected) Gym.colors.accent else Gym.colors.textSecondary
+private fun androidx.compose.foundation.layout.RowScope.NavCell(
+    item: NavItem, selected: Boolean, showLabel: Boolean, onNavigate: (String) -> Unit,
+) {
+    val c = Gym.colors
+    val color = when {
+        !selected -> c.textSecondary
+        c.dark -> c.accent
+        else -> c.text
+    }
     Column(
-        Modifier.weight(1f).height(64.dp).clickable { onNavigate(item.route) }.padding(top = 8.dp),
+        Modifier.weight(1f).height(64.dp)
+            .selectable(selected = selected, role = Role.Tab) { onNavigate(item.route) }
+            .padding(top = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Icon(item.icon, null, tint = color)
-        Text(item.label, color = color, style = MaterialTheme.typography.labelSmall,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+        Icon(item.icon, if (showLabel) null else item.label, tint = color)
+        if (showLabel) {
+            Text(item.label, color = color, style = MaterialTheme.typography.labelSmall,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }

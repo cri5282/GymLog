@@ -14,8 +14,12 @@ import it.gymlog.app.domain.activeRowIndex
 import it.gymlog.app.domain.recordsBeaten
 import it.gymlog.app.timer.RestTimer
 import it.gymlog.app.timer.TimerState
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -53,6 +57,10 @@ data class WorkoutUiState(
     val selectedRow: Map<Int, Int> = emptyMap(),
 )
 
+sealed interface WorkoutEvent {
+    data class RowRemoved(val message: String) : WorkoutEvent
+}
+
 class WorkoutViewModel(
     private val sessionId: Long,
     private val workouts: WorkoutRepository,
@@ -63,6 +71,13 @@ class WorkoutViewModel(
     private val _state = MutableStateFlow(WorkoutUiState())
     val state: StateFlow<WorkoutUiState> = _state.asStateFlow()
     val timerState: StateFlow<TimerState> get() = timer.state
+
+    private val _events = MutableSharedFlow<WorkoutEvent>(extraBufferCapacity = 4)
+    val events: SharedFlow<WorkoutEvent> = _events.asSharedFlow()
+
+    private data class RemovedRow(val page: Int, val index: Int, val row: RowState, val selectedBefore: Int?)
+    private var lastRemoved: RemovedRow? = null
+    private var lastRemovalJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -191,6 +206,99 @@ class WorkoutViewModel(
         }
     }
 
+    /** Rimuove una riga dalla tabella e, se la serie era già confermata, anche dal database. */
+    fun removeRow(page: Int, row: Int) {
+        val p = _state.value.pages.getOrNull(page) ?: return
+        if (row !in p.rows.indices || (page to row) in saving) return
+        val removed = p.rows[row]
+        val remaining = p.rows.filterIndexed { i, _ -> i != row }
+        // Gli indici delle serie salvate restano contigui, così una nuova serie non ne duplica uno.
+        val rows = remaining.mapIndexed { i, r ->
+            r.entry?.let { e -> if (e.setIndex == i) r else r.copy(entry = e.copy(setIndex = i)) } ?: r
+        }
+        val reindexed = remaining.mapIndexedNotNull { i, r ->
+            r.entry?.takeIf { it.setIndex != i }?.copy(setIndex = i)
+        }
+        val selectedBefore = _state.value.selectedRow[page]
+        _state.update { s ->
+            val pages = s.pages.toMutableList()
+            val current = pages.getOrNull(page) ?: return@update s
+            if (row !in current.rows.indices || current.rows.size != p.rows.size) return@update s
+            pages[page] = current.copy(rows = rows)
+            val selected = s.selectedRow.toMutableMap()
+            selected[page]?.let { sel ->
+                when {
+                    sel == row -> selected[page] = row.coerceAtMost(rows.lastIndex.coerceAtLeast(0))
+                    sel > row -> selected[page] = sel - 1
+                }
+            }
+            s.copy(pages = pages, selectedRow = selected)
+        }
+        lastRemoved = RemovedRow(page, row, removed, selectedBefore = selectedBefore)
+        lastRemovalJob = viewModelScope.launch {
+            removed.entry?.let { workouts.deleteSet(it) }
+            reindexed.forEach { workouts.updateSet(it) }
+        }
+        _events.tryEmit(WorkoutEvent.RowRemoved("Serie rimossa"))
+    }
+
+    /** Ripristina l'ultima serie rimossa, conservando id e posizione. */
+    fun undoRemove() {
+        val undo = lastRemoved ?: return
+        lastRemoved = null
+        val removal = lastRemovalJob
+        lastRemovalJob = null
+        viewModelScope.launch {
+            removal?.join()
+            val p = _state.value.pages.getOrNull(undo.page) ?: return@launch
+            val index = undo.index.coerceIn(0, p.rows.size)
+            val inserted = p.rows.toMutableList().apply { add(index, undo.row) }
+            val rows = inserted.mapIndexed { i, r ->
+                r.entry?.let { e -> if (e.setIndex == i) r else r.copy(entry = e.copy(setIndex = i)) } ?: r
+            }
+            _state.update { s ->
+                val pages = s.pages.toMutableList()
+                val current = pages.getOrNull(undo.page) ?: return@update s
+                pages[undo.page] = current.copy(rows = rows)
+                val selected = s.selectedRow.toMutableMap()
+                val before = undo.selectedBefore
+                if (before != null) {
+                    selected[undo.page] = before
+                } else {
+                    selected[undo.page]?.let { sel -> if (sel >= index) selected[undo.page] = sel + 1 }
+                }
+                s.copy(pages = pages, selectedRow = selected)
+            }
+            undo.row.entry?.let { workouts.restoreSet(it.copy(setIndex = index)) }
+            rows.forEach { r -> r.entry?.let { workouts.updateSet(it) } }
+        }
+    }
+
+    /** Duplica una serie subito sotto, lasciandola non confermata. */
+    fun duplicateRow(page: Int, row: Int) {
+        val p = _state.value.pages.getOrNull(page) ?: return
+        val source = p.rows.getOrNull(row) ?: return
+        insertRow(page, row + 1, source.copy(entry = null))
+    }
+
+    private fun insertRow(page: Int, index: Int, row: RowState) {
+        val p = _state.value.pages.getOrNull(page) ?: return
+        val at = index.coerceIn(0, p.rows.size)
+        val inserted = p.rows.toMutableList().apply { add(at, row) }
+        val rows = inserted.mapIndexed { i, r ->
+            r.entry?.let { e -> if (e.setIndex == i) r else r.copy(entry = e.copy(setIndex = i)) } ?: r
+        }
+        _state.update { s ->
+            val pages = s.pages.toMutableList()
+            val current = pages.getOrNull(page) ?: return@update s
+            pages[page] = current.copy(rows = rows)
+            val selected = s.selectedRow.toMutableMap()
+            selected[page]?.let { sel -> if (sel >= at) selected[page] = sel + 1 }
+            s.copy(pages = pages, selectedRow = selected)
+        }
+        viewModelScope.launch { rows.forEach { r -> r.entry?.let { workouts.updateSet(it) } } }
+    }
+
     /** Riga espansa della pagina. */
     fun activeRow(page: Int): Int? {
         val s = _state.value
@@ -255,7 +363,8 @@ class WorkoutViewModel(
 
     fun addExercise(exerciseId: Long) = viewModelScope.launch {
         val order = (_state.value.pages.maxOfOrNull { it.planned.order } ?: -1) + 1
-        val planned = workouts.planSingle(sessionId, exerciseId, order, null, it.gymlog.app.data.repo.DEFAULT_REST_SECONDS) ?: return@launch
+        val rest = settings.current().defaultRestSeconds
+        val planned = workouts.planSingle(sessionId, exerciseId, order, null, rest) ?: return@launch
         val newPage = page(planned)
         _state.update { it.copy(pages = it.pages + newPage) }
     }
@@ -273,6 +382,21 @@ class WorkoutViewModel(
     }
 
     fun addRestSeconds(seconds: Int) = timer.addSeconds(seconds)
+    fun pauseRest() = timer.pause()
+    fun resumeRest() = timer.resume()
+    fun setRest(seconds: Int) = timer.start(seconds)
+
+    /** Cambia il recupero del solo esercizio corrente per le prossime serie. */
+    fun setExerciseRest(page: Int, seconds: Int) {
+        val rest = seconds.coerceIn(5, 1800)
+        _state.update { s ->
+            val pages = s.pages.toMutableList()
+            val current = pages.getOrNull(page) ?: return@update s
+            pages[page] = current.copy(planned = current.planned.copy(restSeconds = rest))
+            s.copy(pages = pages)
+        }
+    }
+
     fun skipRest() = timer.skip()
 
     fun finish() = viewModelScope.launch {
