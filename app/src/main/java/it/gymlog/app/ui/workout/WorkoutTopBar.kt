@@ -48,7 +48,7 @@ fun elapsedLabel(startedAt: Long, now: Long): String {
 fun WorkoutTopBar(
     title: String, startedAt: Long, done: Int, total: Int, canReplace: Boolean,
     onClose: () -> Unit, onFinish: () -> Unit, onAddExercise: () -> Unit, onReplaceExercise: () -> Unit, onEditExercise: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenSettings: () -> Unit, onCancel: () -> Unit,
 ) {
     val c = Gym.colors
     val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(1000) } }
@@ -68,6 +68,10 @@ fun WorkoutTopBar(
                         onClick = { menu = false; onReplaceExercise() })
                     DropdownMenuItem(text = { Text("Modifica esercizio") }, onClick = { menu = false; onEditExercise() })
                     DropdownMenuItem(text = { Text("Impostazioni allenamento") }, onClick = { menu = false; onOpenSettings() })
+                    DropdownMenuItem(
+                        text = { Text("Annulla allenamento", color = c.error) },
+                        onClick = { menu = false; onCancel() },
+                    )
                 }
             }
             IconButton(

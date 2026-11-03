@@ -7,6 +7,7 @@ import it.gymlog.app.data.db.SessionTime
 import it.gymlog.app.data.db.SetEntry
 import it.gymlog.app.data.db.SetWithSession
 import it.gymlog.app.data.db.WorkoutSession
+import it.gymlog.app.data.repo.DeletedSession
 import it.gymlog.app.data.repo.ExerciseRepository
 import it.gymlog.app.data.repo.WorkoutRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,9 +17,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class HistoryViewModel(workouts: WorkoutRepository) : ViewModel() {
+class HistoryViewModel(private val workouts: WorkoutRepository) : ViewModel() {
     val sessions: StateFlow<List<SessionTime>> =
         workouts.observeFinishedSessionTimes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Elimina una sessione conclusa restituendo la copia necessaria per "Annulla". */
+    fun deleteSession(sessionId: Long, onDeleted: (DeletedSession?) -> Unit) = viewModelScope.launch {
+        onDeleted(workouts.deleteSessionSnapshot(sessionId))
+    }
+
+    fun restoreSession(deleted: DeletedSession) = viewModelScope.launch {
+        workouts.restoreSession(deleted)
+    }
 }
 
 data class ExerciseGroup(val exercise: Exercise, val sets: List<SetEntry>)

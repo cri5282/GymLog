@@ -27,6 +27,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -161,6 +162,21 @@ class WorkoutViewModelTest {
         val recap = vm.await { it.recap != null }.recap!!
         assertEquals(1, recap.workingSets)
         assertEquals(500.0, recap.volumeKg, 1e-9)
+    }
+
+    @Test fun cancel_deletesSessionAndSets() = runTest {
+        val e = env()
+        val vm = vm(e)
+        vm.await { true }
+        vm.confirm(0, 0)
+        vm.await { it.pages[0].rows[0].done }
+        var done = false
+        vm.cancel { done = true }
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(10_000) { while (!done) kotlinx.coroutines.delay(20) }
+        }
+        assertNull(db.workoutDao().getSession(e.session))
+        assertTrue(db.workoutDao().getSets(e.session).isEmpty())
     }
 
     @Test fun doubleTapConfirm_savesOnce() = runTest {

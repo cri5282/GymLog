@@ -90,6 +90,27 @@ class HomeViewModelTest {
         assertNull(vm.await { it.selected == LocalDate.of(2026, 10, 18) }.selectedRoutine)
     }
 
+    @Test fun assign_movesRoutineToSelectedWeekday() = runTest {
+        val (vm, _) = vm()
+        val initial = vm.await { it.routines.size == 5 }
+        val legs = initial.routines.first { it.day.name == "Legs" }
+        val sunday = LocalDate.of(2026, 10, 18)
+        vm.select(sunday)
+        vm.assign(sunday, legs.day.id)
+        val s = vm.await { it.selectedRoutine?.id == legs.day.id }
+        assertEquals("Legs", s.selectedRoutine!!.name)
+        assertEquals(legs.exerciseCount, s.selectedExerciseCount)
+        assertEquals(5, s.plannedPerWeek)
+    }
+
+    @Test fun assignRest_clearsWeekday() = runTest {
+        val (vm, _) = vm()
+        vm.await { it.selectedRoutine != null }
+        vm.assign(today, null)
+        val s = vm.await { it.selectedRoutine == null }
+        assertEquals(4, s.plannedPerWeek)
+    }
+
     @Test fun finishedSessionToday_markerDoneAndSelectedSession() = runTest {
         val (vm, workouts) = vm()
         val s = workouts.startOrResume(ProgramRepository(db).todayDay(today)!!.id)

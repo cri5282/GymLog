@@ -151,6 +151,21 @@ class WorkoutRepositoryTest {
         assertEquals(1, db.workoutDao().getSets(session).size)
     }
 
+    @Test fun deleteSessionSnapshot_restoresSessionAndSets() = runTest {
+        val r = repo()
+        val s = r.startOrResume(pushA())
+        val ex = r.plan(s).first().exercise.exercise.id
+        r.confirmSet(s, ex, 0, 0, w(80.0, 8, 2), "")
+        val snapshot = r.deleteSessionSnapshot(s)!!
+        assertNull(r.getSession(s))
+        assertTrue(db.workoutDao().getSets(s).isEmpty())
+
+        r.restoreSession(snapshot)
+        assertEquals(snapshot.session, r.getSession(s))
+        assertEquals(1, db.workoutDao().getSets(s).size)
+        assertEquals(80.0, db.workoutDao().getSets(s).single().weightKg, 1e-9)
+    }
+
     @Test fun closeOpenSession_empty_deletesInsteadOfLeavingGhostSession() = runTest {
         val r = repo()
         val s = r.startOrResume(null)

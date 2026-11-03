@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.History
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.rounded.MonitorWeight
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -168,7 +170,7 @@ fun StatsScreen(
                 if (s.total > 0) TextButton(onClick = onOpenHistory) { Text("Vedi tutti", color = c.accent) }
             }
             if (s.recent.isEmpty()) EmptyState(Icons.Rounded.History, "Nessun allenamento. Puoi importare lo storico da Hevy nelle Impostazioni.")
-            s.recent.forEach { SessionCard(it) { onOpenSession(it.id) } }
+            s.recent.forEach { SessionCard(it, onClick = { onOpenSession(it.id) }) }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -176,7 +178,7 @@ fun StatsScreen(
 
 /** Card di una sessione conclusa: titolo, data, durata, serie. */
 @Composable
-fun SessionCard(session: SessionTime, onClick: () -> Unit) {
+fun SessionCard(session: SessionTime, onClick: () -> Unit, onDelete: (() -> Unit)? = null) {
     val c = Gym.colors
     GymCard(onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -190,6 +192,11 @@ fun SessionCard(session: SessionTime, onClick: () -> Unit) {
                     session.minutes()?.takeIf { it > 0 }?.let { append(" · $it min") }
                     append(" · ${session.setCount} serie")
                 }, color = c.textSecondary)
+            }
+            if (onDelete != null) {
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Rounded.Delete, "Elimina allenamento", tint = c.textSecondary)
+                }
             }
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.textSecondary)
         }

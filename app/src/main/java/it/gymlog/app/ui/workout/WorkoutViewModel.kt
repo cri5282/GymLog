@@ -399,6 +399,13 @@ class WorkoutViewModel(
 
     fun skipRest() = timer.skip()
 
+    /** Annulla l'allenamento in corso: elimina sessione e serie senza salvarlo nello storico. */
+    fun cancel(onDone: () -> Unit) = viewModelScope.launch {
+        timer.skip()
+        workouts.getSession(sessionId)?.takeIf { it.endedAt == null }?.let { workouts.deleteSession(it) }
+        onDone()
+    }
+
     fun finish() = viewModelScope.launch {
         timer.skip()
         val recap = workouts.finish(sessionId)

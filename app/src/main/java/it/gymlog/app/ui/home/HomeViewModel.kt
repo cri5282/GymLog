@@ -26,6 +26,8 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
+data class HomeRoutine(val day: RoutineDay, val exerciseCount: Int)
+
 data class HomeState(
     val loading: Boolean = true,
     val weekStart: LocalDate = LocalDate.MIN,
@@ -35,6 +37,8 @@ data class HomeState(
     val today: LocalDate = LocalDate.MIN,
     val selectedRoutine: RoutineDay? = null,
     val selectedExerciseCount: Int = 0,
+    /** Tutte le schede del programma attivo, per assegnarle al giorno scelto. */
+    val routines: List<HomeRoutine> = emptyList(),
     /** Allenamento concluso nel giorno selezionato (il più recente). */
     val selectedSession: SessionTime? = null,
     val unfinished: WorkoutSession? = null,
@@ -64,15 +68,17 @@ class HomeViewModel(
     private data class View(val today: LocalDate, val week: LocalDate, val selected: LocalDate)
 
     val state: StateFlow<HomeState> = combine(
-        days, workouts.observeFinishedSessionTimes(), workouts.observeUnfinished(),
+        days, workouts.observeFinishedSessionTimes(), workouts.observeUnfinished(), programs.observeExerciseCounts(),
         combine(day, shownWeek, selected) { d, w, sel -> View(d, w, sel) },
-    ) { routineDays, sessions, unfinished, v -> Inputs(routineDays, sessions, unfinished, v.week, v.selected, v.today) }
+    ) { routineDays, sessions, unfinished, counts, v ->
+        Inputs(routineDays, sessions, unfinished, counts, v.week, v.selected, v.today)
+    }
         .mapLatest(::build)
         .stateIn(viewModelScope, SharingStarted.Eagerly, HomeState())
 
     private data class Inputs(
         val routineDays: List<RoutineDay>, val sessions: List<SessionTime>, val unfinished: WorkoutSession?,
-        val week: LocalDate, val selected: LocalDate, val today: LocalDate,
+        val counts: Map<Long, Int>, val week: LocalDate, val selected: LocalDate, val today: LocalDate,
     )
 
     private suspend fun build(i: Inputs): HomeState {
@@ -80,6 +86,7 @@ class HomeViewModel(
         val dates = i.sessions.map { localDate(it.startedAt, zone) }.toSet()
         val planned = i.routineDays.mapNotNull { it.dayOfWeek }.toSet()
         val routine = i.routineDays.firstOrNull { it.dayOfWeek == i.selected.dayOfWeek.value }
+        val routines = i.routineDays.map { HomeRoutine(it, i.counts[it.id] ?: 0) }
         val currentWeek = weekStart(now)
         return HomeState(
             loading = false,
@@ -89,7 +96,8 @@ class HomeViewModel(
             selected = i.selected,
             today = now,
             selectedRoutine = routine,
-            selectedExerciseCount = routine?.let { programs.getDayExercises(it.id).size } ?: 0,
+            selectedExerciseCount = routines.firstOrNull { it.day.id == routine?.id }?.exerciseCount ?: 0,
+            routines = routines,
             selectedSession = i.sessions.firstOrNull { localDate(it.startedAt, zone) == i.selected },
             unfinished = i.unfinished,
             stale = i.unfinished != null && localDate(i.unfinished.startedAt, zone).isBefore(now),
@@ -113,6 +121,11 @@ class HomeViewModel(
     fun previousWeek() = shownWeek.update { it.minusWeeks(1) }
     fun nextWeek() = shownWeek.update { it.plusWeeks(1) }
     fun select(date: LocalDate) { selected.value = date }
+
+    /** Assegna una scheda al giorno della settimana di [date] (null = riposo). */
+    fun assign(date: LocalDate, routineDayId: Long?) = viewModelScope.launch {
+        programs.active()?.let { programs.assignDay(it.id, date.dayOfWeek.value, routineDayId) }
+    }
 
     private var starting = false
 

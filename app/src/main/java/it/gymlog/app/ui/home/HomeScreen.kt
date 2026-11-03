@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -26,12 +27,15 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,12 +45,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.gymlog.app.data.db.SessionTime
 import it.gymlog.app.domain.DayMarker
+import it.gymlog.app.ui.common.WEEKDAYS
 import it.gymlog.app.ui.common.appViewModel
 import it.gymlog.app.ui.common.formatDate
 import it.gymlog.app.ui.design.AccentPill
@@ -79,6 +85,7 @@ fun HomeScreen(
     val c = Gym.colors
     if (s.loading) return
     var staleDismissed by remember { mutableStateOf<Long?>(null) }
+    var assigningDay by remember { mutableStateOf<LocalDate?>(null) }
 
     s.unfinished?.takeIf { s.stale && staleDismissed != it.id }?.let { open ->
         AlertDialog(
@@ -114,8 +121,11 @@ fun HomeScreen(
                 Row(Modifier.padding(vertical = 8.dp)) {
                     s.days.forEachIndexed { i, day -> DayCell(day, s.markers.getOrNull(i), day == s.today, day == s.selected) { vm.select(day) } }
                 }
-                SelectedDayRow(s, onStart = { id -> vm.start(id, onOpenWorkout) }, onResume = onOpenWorkout,
-                    onOpenSession = onOpenSession, onPickRoutine = onPickRoutine)
+                SelectedDayRow(
+                    s, onStart = { id -> vm.start(id, onOpenWorkout) }, onResume = onOpenWorkout,
+                    onOpenSession = onOpenSession, onPickRoutine = onPickRoutine,
+                    onAssign = { assigningDay = s.selected },
+                )
                 if (s.selected == s.today && s.unfinished == null && s.selectedRoutine != null) {
                     androidx.compose.material3.TextButton(onClick = onPickRoutine, modifier = Modifier.fillMaxWidth()) {
                         Text("Fai un'altra scheda o un allenamento libero", color = c.accent)
@@ -155,6 +165,83 @@ fun HomeScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
+
+    assigningDay?.let { date ->
+        WeekdayRoutineSheet(
+            date = date,
+            routines = s.routines,
+            currentRoutineId = s.selectedRoutine?.id,
+            onPick = { routineId ->
+                assigningDay = null
+                vm.assign(date, routineId)
+            },
+            onDismiss = { assigningDay = null },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WeekdayRoutineSheet(
+    date: LocalDate,
+    routines: List<HomeRoutine>,
+    currentRoutineId: Long?,
+    onPick: (Long?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val c = Gym.colors
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = c.background,
+    ) {
+        Column(
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Scheda del ${WEEKDAYS[date.dayOfWeek.value - 1].lowercase()}",
+                style = GymType.cardTitle, color = c.text)
+            Text("Scegli una delle schede che hai creato. La scelta aggiorna il Piano per questo giorno.",
+                color = c.textSecondary, style = MaterialTheme.typography.bodyMedium)
+            routines.forEach { routine ->
+                val day = routine.day
+                val selected = day.id == currentRoutineId
+                GymCard(
+                    onClick = { onPick(day.id) },
+                    color = if (selected) c.accentContainer else c.card,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        IconBadge(Icons.Rounded.FitnessCenter)
+                        Column(Modifier.weight(1f)) {
+                            Text(day.name, style = MaterialTheme.typography.titleMedium, color = c.text)
+                            Text("${routine.exerciseCount} esercizi", color = c.textSecondary)
+                            day.dayOfWeek?.takeIf { it != date.dayOfWeek.value }?.let {
+                                Text("Ora il ${WEEKDAYS[it - 1].lowercase()}: verrà spostata",
+                                    color = c.textSecondary, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        if (selected) {
+                            Text("Assegnata", color = c.accent, style = GymType.label)
+                        }
+                    }
+                }
+            }
+            GymCard(onClick = { onPick(null) }, color = if (currentRoutineId == null) c.accentContainer else c.card) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    IconBadge(Icons.Rounded.SelfImprovement, color = c.border)
+                    Column(Modifier.weight(1f)) {
+                        Text("Riposo", style = MaterialTheme.typography.titleMedium, color = c.text)
+                        Text("Nessuna scheda assegnata a questo giorno", color = c.textSecondary)
+                    }
+                    if (currentRoutineId == null) Text("Assegnato", color = c.accent, style = GymType.label)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
 }
 
 @Composable
@@ -184,7 +271,8 @@ private fun androidx.compose.foundation.layout.RowScope.DayCell(
 
 @Composable
 private fun SelectedDayRow(
-    s: HomeState, onStart: (Long) -> Unit, onResume: (Long) -> Unit, onOpenSession: (Long) -> Unit, onPickRoutine: () -> Unit,
+    s: HomeState, onStart: (Long) -> Unit, onResume: (Long) -> Unit, onOpenSession: (Long) -> Unit,
+    onPickRoutine: () -> Unit, onAssign: () -> Unit,
 ) {
     val c = Gym.colors
     val label = if (s.selected == s.today) "OGGI"
@@ -199,11 +287,24 @@ private fun SelectedDayRow(
             when { session != null -> Icons.Rounded.CheckCircle; routine != null -> Icons.Rounded.FitnessCenter; else -> Icons.Rounded.SelfImprovement },
             color = if (routine == null && session == null) c.border else c.accent,
         )
-        Column(Modifier.weight(1f)) {
+        Column(
+            Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = "Scegli una scheda per ${label.lowercase()}",
+                    onClick = onAssign,
+                )
+                .padding(4.dp),
+        ) {
             Text(label, style = GymType.label, color = c.textSecondary)
             Text(session?.title ?: routine?.name ?: "Riposo", style = MaterialTheme.typography.titleLarge, color = c.text)
-            if (session != null) Text("Fatto${session.minutes()?.let { " · $it min" } ?: ""}", color = c.accent)
-            else if (routine != null) Text("${s.selectedExerciseCount} esercizi", color = c.textSecondary)
+            if (session != null) {
+                Text("Fatto${session.minutes()?.let { " · $it min" } ?: ""}", color = c.accent)
+            } else if (routine != null) {
+                Text("${s.selectedExerciseCount} esercizi · tocca per cambiare", color = c.textSecondary)
+            } else {
+                Text("Tocca per assegnare una scheda", color = c.textSecondary)
+            }
         }
         val unfinished = s.unfinished
         when {

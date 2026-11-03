@@ -8,7 +8,7 @@ L'app unisce in un unico posto scheda, diario degli allenamenti, timer di recupe
 misurazioni corporee e backup. Non richiede un account e non ha bisogno di una connessione a
 Internet per funzionare.
 
-**Versione:** 1.4.0 (`versionCode` 7) · **Android:** 8.0+ (API 26) · **Lingua:** italiano · **Dati:** solo in locale
+**Versione:** 1.5.0 (`versionCode` 8) · **Android:** 8.0+ (API 26) · **Lingua:** italiano · **Dati:** solo in locale
 
 ---
 
@@ -53,6 +53,9 @@ La schermata iniziale risponde alla domanda "che cosa devo fare oggi?".
 - Indicatori per i giorni con un allenamento concluso, i giorni con una scheda pianificata e i
   giorni di riposo.
 - Scheda del giorno selezionato, numero di esercizi e pulsante **Start**.
+- Toccando il giorno della settimana si apre un pannello con le schede già create: se ne sceglie
+  una oppure **Riposo**, senza passare dal Piano. La scelta aggiorna il Piano e sposta la scheda
+  da un eventuale altro giorno.
 - Se un allenamento è già in corso, il pulsante diventa **Riprendi**.
 - Serie di settimane consecutive con almeno un allenamento, allenamenti della settimana,
   totale storico e ultimo allenamento.
@@ -90,6 +93,8 @@ La registrazione è pensata per essere veloce tra una serie e l'altra.
   suono e/o vibrazione.
 - Possibilità di tenere lo schermo acceso durante l'allenamento.
 - Riepilogo finale con durata, serie, volume e record battuti.
+- **Annulla allenamento** dal menu ⋯: dopo la conferma la sessione e tutte le serie vengono
+  eliminate e l'allenamento non compare nello storico.
 
 ### Piano
 
@@ -142,6 +147,8 @@ Sezione facoltativa per seguire la composizione corporea.
 - Elenco di tutte le sessioni concluse, con data, durata, numero di serie e origine
   (manuale o importata da Hevy).
 - Dettaglio della sessione con esercizi e serie registrate.
+- Eliminazione di un allenamento con conferma; la snackbar **Annulla** lo ripristina con tutte le
+  sue serie.
 - Storico per esercizio con carichi, ripetizioni, RIR e date.
 - Accesso ai grafici e ai record del singolo esercizio.
 
@@ -414,9 +421,9 @@ scripts/build-apk.sh
 ```
 
 `scripts/build-apk.sh` esegue `clean`, i test e `assembleRelease`, verifica la firma e copia il file
-in `dist/GymLog-<versione>.apk`. La suite attuale conta **186 test JVM**.
+in `dist/GymLog-<versione>.apk`. La suite attuale conta **190 test JVM**.
 
-L'APK pronto per l'installazione è `dist/GymLog-1.4.0.apk`. Per installarlo e aggiornarlo sul
+L'APK pronto per l'installazione è `dist/GymLog-1.5.0.apk`. Per installarlo e aggiornarlo sul
 telefono segui [INSTALLA.md](INSTALLA.md).
 
 ### Firma
@@ -477,7 +484,7 @@ GymLog/
 
 ## Documentazione collegata
 
-- [INSTALLA.md](INSTALLA.md) – installazione, aggiornamenti, backup e checklist della versione 1.4.0.
+- [INSTALLA.md](INSTALLA.md) – installazione, aggiornamenti, backup e checklist della versione 1.5.0.
 - [docs/superpowers/specs](docs/superpowers/specs) – specifiche di design del progetto.
 
 ## Licenza

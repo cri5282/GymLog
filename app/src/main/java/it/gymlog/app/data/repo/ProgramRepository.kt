@@ -15,6 +15,7 @@ class ProgramRepository(private val db: AppDatabase) {
 
     fun observePrograms(): Flow<List<Program>> = dao.observePrograms()
     fun observeActive(): Flow<Program?> = dao.observeActive()
+    suspend fun active(): Program? = dao.getActive()
     suspend fun getProgram(id: Long): Program? = dao.getProgram(id)
 
     suspend fun create(name: String): Long = dao.insertProgram(Program(name = name.trim()))

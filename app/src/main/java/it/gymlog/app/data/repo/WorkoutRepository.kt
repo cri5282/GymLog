@@ -38,6 +38,9 @@ data class PlannedExercise(
 
 data class SessionRecap(val durationMin: Long, val workingSets: Int, val volumeKg: Double)
 
+/** Copia completa di un allenamento eliminato, usata da "Annulla". */
+data class DeletedSession(val session: WorkoutSession, val sets: List<SetEntry>)
+
 const val DEFAULT_REST_SECONDS = 120
 const val FREE_WORKOUT_TITLE = "Allenamento libero"
 
@@ -178,6 +181,20 @@ class WorkoutRepository(
     /** Reinserisce una serie rimossa conservandone l'id (usato da "Annulla"). */
     suspend fun restoreSet(set: SetEntry) = dao.insertSet(set)
     suspend fun deleteSession(session: WorkoutSession) = dao.deleteSession(session)
+
+    /** Elimina un allenamento conservando una copia completa per poterlo ripristinare. */
+    suspend fun deleteSessionSnapshot(sessionId: Long): DeletedSession? = db.withTransaction {
+        val session = dao.getSession(sessionId) ?: return@withTransaction null
+        val sets = dao.getSets(sessionId)
+        dao.deleteSession(session)
+        DeletedSession(session, sets)
+    }
+
+    /** Reinserisce un allenamento eliminato conservando id della sessione e delle serie. */
+    suspend fun restoreSession(deleted: DeletedSession) = db.withTransaction {
+        dao.insertSession(deleted.session)
+        if (deleted.sets.isNotEmpty()) dao.insertSets(deleted.sets)
+    }
 
     fun observeStatSets(): Flow<List<StatSet>> = dao.observeStatSets()
 

@@ -75,6 +75,7 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
     val settings by container.settings.settings.collectAsStateWithLifecycle(Settings())
     var picker by remember { mutableStateOf<Picker?>(null) }
     var confirmFinish by remember { mutableStateOf(false) }
+    var confirmCancel by remember { mutableStateOf(false) }
     var editingExercise by remember { mutableStateOf<Long?>(null) }
     var notesOpen by remember { mutableStateOf<String?>(null) }
     var settingsOpen by remember { mutableStateOf(false) }
@@ -139,6 +140,7 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
                 onAddExercise = { picker = Picker.ADD }, onReplaceExercise = { picker = Picker.REPLACE },
                 onEditExercise = { state.pages.getOrNull(pager.currentPage)?.planned?.exercise?.exercise?.id?.let { editingExercise = it } },
                 onOpenSettings = { settingsOpen = true },
+                onCancel = { confirmCancel = true },
             )
             if (settings.showExerciseChips && state.pages.size > 1) {
                 ExerciseChips(
@@ -254,6 +256,13 @@ fun WorkoutScreen(sessionId: Long, timer: RestTimer, onExit: () -> Unit) {
     if (confirmFinish) ConfirmDialog("Terminare l'allenamento?",
         "Le serie non confermate con ✓ non verranno salvate.", "Termina",
         onConfirm = { confirmFinish = false; vm.finish() }, onDismiss = { confirmFinish = false })
+    if (confirmCancel) ConfirmDialog(
+        "Annullare l'allenamento?",
+        "Verranno eliminate anche le serie già registrate. L'allenamento non resterà nello storico.",
+        "Sì, annulla",
+        onConfirm = { confirmCancel = false; vm.cancel(onExit) },
+        onDismiss = { confirmCancel = false },
+    )
     restEditing?.let { (page, initial) ->
         RestDurationDialog(
             initial = initial,

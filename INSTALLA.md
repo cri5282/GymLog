@@ -2,7 +2,7 @@
 
 ## 1. Copiare l'APK sul telefono
 
-Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.4.0.apk`. Scegli uno di questi modi:
+Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.5.0.apk`. Scegli uno di questi modi:
 
 - **Cavo USB:** collega il telefono, sul telefono scegli "Trasferimento file", copia l'APK nella cartella *Download*.
 - **Google Drive:** carica l'APK su Drive dal PC e scaricalo dal telefono con l'app Drive.
@@ -36,13 +36,20 @@ Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.4.0.apk`. Scegli uno d
 - Da **Impostazioni → Backup** puoi esportare tutto in uno zip e ripristinarlo in seguito.
   È disponibile anche il backup automatico settimanale in una cartella scelta.
 
-## Aggiornare alla 1.4.0 (accessibilità e Annulla)
+## Aggiornare alla 1.5.0 (annulla, ripristino e scheda del giorno)
 
-Installa `GymLog-1.4.0.apk` **sopra** la versione precedente, senza disinstallare: allenamenti,
-schede, foto e impostazioni restano. La 1.4.0 include anche le novità della 1.3.1: niente
-riscaldamento automatico, rimozione delle serie con conferma e indici contigui.
+Installa `GymLog-1.5.0.apk` **sopra** la versione precedente, senza disinstallare: allenamenti,
+schede, foto e impostazioni restano. La 1.5.0 include anche le novità della 1.4.0: accessibilità,
+annullamento della rimozione di una serie e impostazioni rapide in allenamento.
 
 Checklist delle novità:
+- [ ] In *Oggi*, toccando il riquadro di un giorno si apre l'elenco delle **schede create**: se ne
+      sceglie una oppure **Riposo**. La scelta si vede subito anche nel *Piano*.
+- [ ] Assegnando a un giorno una scheda già usata in un altro giorno, la scheda viene spostata.
+- [ ] Nel menu ⋯ dell'allenamento c'è **Annulla allenamento**: dopo la conferma sessione e serie
+      vengono eliminate e l'allenamento non compare nello storico.
+- [ ] Nello *Storico*, l'icona del cestino elimina un allenamento dopo la conferma; la snackbar
+      **Annulla** lo ripristina con tutte le sue serie.
 - [ ] Dopo aver rimosso una serie compare **Annulla** nella snackbar e il ripristino conserva
       carico, ripetizioni, RIR e posizione.
 - [ ] Il **menu del numero di serie** permette di duplicare, rimuovere o cambiare tipo.
