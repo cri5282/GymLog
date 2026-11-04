@@ -5,10 +5,10 @@ GymLog è un'app Android **offline-first** per pianificare e registrare gli alle
 e tutti i dati restano sul telefono.
 
 L'app unisce in un unico posto scheda, diario degli allenamenti, timer di recupero, statistiche,
-misurazioni corporee e backup. Non richiede un account e non ha bisogno di una connessione a
-Internet per funzionare.
+misurazioni corporee e backup. Non richiede un account: senza connessione funziona interamente
+offline. Chi vuole può accedere con Google per condividere il catalogo degli esercizi.
 
-**Versione:** 1.5.0 (`versionCode` 8) · **Android:** 8.0+ (API 26) · **Lingua:** italiano · **Dati:** solo in locale
+**Versione:** 1.5.1 (`versionCode` 9) · **Android:** 8.0+ (API 26) · **Lingua:** italiano · **Dati:** locali, condivisione facoltativa del catalogo
 
 ---
 
@@ -378,10 +378,14 @@ L'importazione è ripetibile: non duplica gli allenamenti già importati.
 
 ## Privacy e permessi
 
-- I dati sono salvati nel database Room, nei file privati dell'app e in DataStore; non vengono
-  inviati a server.
-- Il manifest non dichiara il permesso `INTERNET`.
-- Non ci sono account, analytics, pubblicità o tracciamento.
+- Allenamenti, schede, note, foto e misure sono salvati nel database Room, nei file privati
+  dell'app e in DataStore; non vengono inviati a server.
+- Non ci sono analytics, pubblicità o tracciamento.
+- L'account è facoltativo. Accedendo con Google vengono inviati a Supabase solo gli esercizi del
+  catalogo condiviso (nome, muscolo, note e immagine) e l'identificativo dell'account. La sessione
+  resta sul telefono ed è esclusa dai backup.
+- Il permesso `INTERNET` serve solo a questa funzione: senza account l'app funziona offline come
+  prima.
 - Il backup ZIP è creato solo su richiesta dell'utente e nella destinazione scelta.
 - Il manifest abilita il backup di sistema di Android (`allowBackup="true"`): i dati possono essere
   inclusi nel backup gestito dal sistema operativo, fuori dal controllo dell'app.
@@ -389,7 +393,8 @@ L'importazione è ripetibile: non duplica gli allenamenti già importati.
   - `POST_NOTIFICATIONS` per il timer di recupero (Android 13+);
   - `FOREGROUND_SERVICE` e `FOREGROUND_SERVICE_SPECIAL_USE` per il servizio del timer;
   - `VIBRATE` per la vibrazione a fine recupero;
-  - `WAKE_LOCK` per mantenere attivo il dispositivo durante il conto alla rovescia.
+  - `WAKE_LOCK` per mantenere attivo il dispositivo durante il conto alla rovescia;
+  - `INTERNET` e `ACCESS_NETWORK_STATE` per l'account facoltativo e il catalogo condiviso.
 - La fotocamera viene aperta tramite l'app di sistema con `FileProvider`; GymLog non richiede il
   permesso `CAMERA`.
 - Disinstallando l'app i dati locali vengono rimossi; se il backup di sistema è attivo, Android
@@ -404,7 +409,8 @@ L'importazione è ripetibile: non duplica gli allenamenti già importati.
 
 - JDK 17;
 - Android SDK con Platform 35 e Build Tools;
-- `local.properties` con `sdk.dir` (non versionato);
+- `local.properties` con `sdk.dir` (non versionato) e, per l'account facoltativo, `SUPABASE_URL`,
+  `SUPABASE_ANON_KEY`, `GOOGLE_WEB_CLIENT_ID`;
 - per l'APK firmato, `keystore.properties` e il keystore (non versionati).
 
 ### Comandi utili
@@ -427,9 +433,9 @@ backend/test.sh
 ```
 
 `scripts/build-apk.sh` esegue `clean`, i test e `assembleRelease`, verifica la firma e copia il file
-in `dist/GymLog-<versione>.apk`. La suite attuale conta **192 test JVM**.
+in `dist/GymLog-<versione>.apk`. La suite attuale conta **205 test JVM**.
 
-L'APK pronto per l'installazione è `dist/GymLog-1.5.0.apk`. Per installarlo e aggiornarlo sul
+L'APK pronto per l'installazione è `dist/GymLog-1.5.1.apk`. Per installarlo e aggiornarlo sul
 telefono segui [INSTALLA.md](INSTALLA.md).
 
 ### Firma
@@ -480,8 +486,9 @@ GymLog/
 - È un progetto personale, pensato per un singolo utente e per l'uso in palestra; non è pubblicato
   sul Play Store.
 - L'interfaccia e i messaggi sono in italiano; i carichi sono solo in kg.
-- Non esiste sincronizzazione cloud o multi-dispositivo: il backup ZIP è il modo previsto per
-  spostare i dati.
+- Non esiste sincronizzazione cloud o multi-dispositivo dei dati personali: il backup ZIP è il
+  modo previsto per spostarli. Solo il catalogo degli esercizi può essere condiviso con un account
+  facoltativo.
 - L'allenamento libero e le schede sono gestiti localmente; non c'è integrazione con wearable o
   con altre app oltre all'importazione del CSV di Hevy.
 - Il PDF della scheda è generato con `PdfDocument` ed è volutamente semplice (testo e impaginazione
@@ -490,7 +497,7 @@ GymLog/
 
 ## Documentazione collegata
 
-- [INSTALLA.md](INSTALLA.md) – installazione, aggiornamenti, backup e checklist della versione 1.5.0.
+- [INSTALLA.md](INSTALLA.md) – installazione, aggiornamenti, backup e checklist della versione 1.5.1.
 - [docs/superpowers/specs](docs/superpowers/specs) – specifiche di design del progetto.
 
 ## Licenza

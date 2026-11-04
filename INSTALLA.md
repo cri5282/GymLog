@@ -2,7 +2,7 @@
 
 ## 1. Copiare l'APK sul telefono
 
-Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.5.0.apk`. Scegli uno di questi modi:
+Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.5.1.apk`. Scegli uno di questi modi:
 
 - **Cavo USB:** collega il telefono, sul telefono scegli "Trasferimento file", copia l'APK nella cartella *Download*.
 - **Google Drive:** carica l'APK su Drive dal PC e scaricalo dal telefono con l'app Drive.
@@ -35,6 +35,23 @@ Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.5.0.apk`. Scegli uno d
   database, foto e impostazioni.
 - Da **Impostazioni → Backup** puoi esportare tutto in uno zip e ripristinarlo in seguito.
   È disponibile anche il backup automatico settimanale in una cartella scelta.
+
+## Aggiornare alla 1.5.1 (account facoltativo e catalogo condiviso)
+
+Installa `GymLog-1.5.1.apk` **sopra** la 1.5.0, senza disinstallare: tutti i dati restano. Senza
+account l'app è identica alla 1.5.0.
+
+Checklist delle novità:
+- [ ] In *Impostazioni* compare la sezione **Account e catalogo condiviso**.
+- [ ] **Accedi con Google** apre il selettore account e, al ritorno, mostra nome, email e pulsante
+      **Esci**.
+- [ ] Con l'account `nicolosimonini3@gmail.com` compare il badge **Admin**.
+- [ ] **Esci** riporta alla schermata di accesso; chiudendo e riaprendo l'app la sessione resta
+      (finché non esci).
+- [ ] Senza account, allenamenti, schede, foto, backup e statistiche funzionano come prima.
+
+Se l'accesso fallisce con un errore Google, manca probabilmente l'OAuth client Android nel progetto
+Google Cloud (package `it.gymlog.app` e impronta SHA-1); va creato prima di riprovare.
 
 ## Aggiornare alla 1.5.0 (annulla, ripristino e scheda del giorno)
 

@@ -115,7 +115,7 @@ class AuthRepository(
         val c = client ?: return
         // Anche offline la sessione locale sparisce: l'app torna utilizzabile senza account.
         runCatching { c.auth.signOut() }
-        _state.value = AuthState.SignedOut
+        runCatching { c.auth.clearSession() }
     }
 
     suspend fun deleteAccount() {
