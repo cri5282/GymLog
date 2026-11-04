@@ -14,9 +14,17 @@ docker run -d --rm --name "$NAME" \
     -e POSTGRES_PASSWORD=test -e POSTGRES_DB=gymlog "$IMAGE" >/dev/null
 
 for _ in $(seq 1 60); do
-    if docker exec "$NAME" pg_isready -U postgres -d gymlog >/dev/null 2>&1; then break; fi
+    # pg_isready risponde anche durante l'inizializzazione, prima che il database esista.
+    if docker exec "$NAME" psql -U postgres -d gymlog -c 'select 1' >/dev/null 2>&1; then
+        ready=1
+        break
+    fi
     sleep 1
 done
+if [ "${ready:-}" != "1" ]; then
+    echo "backend: Postgres non pronto" >&2
+    exit 1
+fi
 
 run() {
     docker exec -i "$NAME" psql -v ON_ERROR_STOP=1 -q -U postgres -d gymlog -f -

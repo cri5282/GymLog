@@ -32,6 +32,34 @@ interface ExerciseDao {
     @Query("SELECT COUNT(*) FROM Exercise")
     suspend fun count(): Int
 
+    @Query("SELECT * FROM Exercise WHERE remoteId = :remoteId LIMIT 1")
+    suspend fun findByRemoteId(remoteId: String): Exercise?
+
+    @Query("SELECT muscle FROM ExerciseSecondaryMuscle WHERE exerciseId = :exerciseId")
+    suspend fun secondaryFor(exerciseId: Long): List<Muscle>
+
+    /** Esercizi mai condivisi e completi: quelli da caricare al prossimo sync. */
+    @Query("SELECT * FROM Exercise WHERE remoteId IS NULL AND archived = 0 AND needsReview = 0 ORDER BY name COLLATE NOCASE")
+    suspend fun localOnly(): List<Exercise>
+
+    @Query("SELECT * FROM Exercise WHERE dirty = 1 AND remoteId IS NOT NULL")
+    suspend fun dirty(): List<Exercise>
+
+    @Query("SELECT * FROM Exercise WHERE pendingImageFile IS NOT NULL AND remoteId IS NOT NULL")
+    suspend fun pendingImages(): List<Exercise>
+
+    @Query("UPDATE Exercise SET remoteId = :remoteId, remoteCreatedBy = :createdBy, dirty = 0 WHERE id = :id")
+    suspend fun markRemote(id: Long, remoteId: String, createdBy: String)
+
+    @Query("UPDATE Exercise SET dirty = 0 WHERE id = :id")
+    suspend fun clearDirty(id: Long)
+
+    @Query("UPDATE Exercise SET sharedImageKey = :key, pendingImageFile = NULL WHERE id = :id")
+    suspend fun setSharedImage(id: Long, key: String)
+
+    @Query("UPDATE Exercise SET pendingImageFile = NULL WHERE id = :id")
+    suspend fun clearPendingImage(id: Long)
+
     @Insert suspend fun insert(e: Exercise): Long
     @Update suspend fun update(e: Exercise)
     @Delete suspend fun delete(e: Exercise)
