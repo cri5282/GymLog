@@ -2,7 +2,7 @@
 
 ## 1. Copiare l'APK sul telefono
 
-Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.5.1.apk`. Scegli uno di questi modi:
+Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.5.2.apk`. Scegli uno di questi modi:
 
 - **Cavo USB:** collega il telefono, sul telefono scegli "Trasferimento file", copia l'APK nella cartella *Download*.
 - **Google Drive:** carica l'APK su Drive dal PC e scaricalo dal telefono con l'app Drive.
@@ -35,6 +35,24 @@ Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.5.1.apk`. Scegli uno d
   database, foto e impostazioni.
 - Da **Impostazioni → Backup** puoi esportare tutto in uno zip e ripristinarlo in seguito.
   È disponibile anche il backup automatico settimanale in una cartella scelta.
+
+## Aggiornare alla 1.5.2 (prima sincronizzazione reale)
+
+Installa `GymLog-1.5.2.apk` **sopra** la 1.5.1. Con l'account già collegato, all'avvio parte la
+sincronizzazione: il catalogo viene caricato una volta e poi tenuto allineato.
+
+Checklist:
+- [ ] In *Impostazioni → Account* compare l'esito, ad esempio "Sincronizzato alle 14:32: 31 inviati,
+      0 nuovi".
+- [ ] **Sincronizza ora** mostra "Sincronizzazione in corso…" e poi un nuovo esito.
+- [ ] Nella libreria *Esercizi* non compaiono duplicati dopo la sincronizzazione.
+- [ ] Modificando nome, muscoli o tipo di un esercizio, pochi secondi dopo l'esito segnala
+      "1 inviati".
+- [ ] Con *Esci* il catalogo locale resta consultabile e l'app funziona come prima.
+
+Se la sincronizzazione fallisce, controlla la connessione e riprova con **Sincronizza ora**. La
+prima volta devono essere presenti anche i permessi della migrazione `20261104130000_tombstones.sql`
+sul progetto Supabase.
 
 ## Aggiornare alla 1.5.1 (account facoltativo e catalogo condiviso)
 

@@ -6,7 +6,8 @@ offline-first: questo backend serve solo a scambiare esercizi, immagini e profil
 ## Contenuto
 
 ```
-supabase/migrations/20261104120000_catalog.sql   schema, RLS, funzioni, bucket
+supabase/migrations/20261104120000_catalog.sql      schema, RLS, funzioni, bucket
+supabase/migrations/20261104130000_tombstones.sql   tombstone leggibili da tutti gli utenti
 supabase/tests/00_stub.sql                       stub di auth/storage (solo per i test locali)
 supabase/tests/10_catalog.sql                    verifiche delle regole
 test.sh                                          esegue tutto su un Postgres usa-e-getta
@@ -46,6 +47,6 @@ Poi in *Auth → Providers → Google* incollare client ID e secret del client *
 ./backend/test.sh
 ```
 
-Avvia `postgres:16-alpine` con `--rm`, applica stub e migrazione e lancia le verifiche: RLS,
+Avvia `postgres:16-alpine` con `--rm`, applica stub e migrazioni e lancia le verifiche: RLS,
 creatore/admin, nome duplicato, muscolo non valido, gara sull'immagine, soft delete, anon senza
 accesso, eliminazione account. Non richiede Supabase CLI né Docker Compose.
