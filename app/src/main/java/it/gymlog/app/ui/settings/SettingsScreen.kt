@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.gymlog.app.data.remote.AuthState
 import it.gymlog.app.data.settings.Accent
+import it.gymlog.app.data.sync.SyncStatus
 import it.gymlog.app.data.settings.AppIcon
 import it.gymlog.app.data.settings.OneRmFormula
 import it.gymlog.app.data.settings.Sex
@@ -65,6 +66,7 @@ import it.gymlog.app.ui.common.ConfirmDialog
 import it.gymlog.app.ui.common.findActivity
 import it.gymlog.app.ui.common.appViewModel
 import it.gymlog.app.ui.common.formatDate
+import it.gymlog.app.ui.common.formatTime
 import it.gymlog.app.ui.common.formatKg
 import it.gymlog.app.ui.common.parseDecimal
 import it.gymlog.app.ui.design.AccentPill
@@ -84,7 +86,7 @@ import java.time.LocalDate
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val vm = appViewModel { SettingsViewModel(it.settings, it.hevyImporter, it.backup, it.csv) }
-    val account = appViewModel { AccountViewModel(it.auth) }
+    val account = appViewModel { AccountViewModel(it.auth, it.catalogSync) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     val importState by vm.import.collectAsStateWithLifecycle()
     val backupMessage by vm.backupMessage.collectAsStateWithLifecycle()
@@ -375,6 +377,7 @@ private fun NumberSetting(
 @Composable
 private fun AccountSection(vm: AccountViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val sync by vm.syncState.collectAsStateWithLifecycle()
     val c = Gym.colors
     val context = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
@@ -412,7 +415,19 @@ private fun AccountSection(vm: AccountViewModel) {
                     color = c.textSecondary,
                     modifier = Modifier.padding(top = 8.dp),
                 )
-                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val (syncText, syncColor) = when (val st = sync) {
+                    SyncStatus.Idle -> "Catalogo non ancora sincronizzato" to c.textSecondary
+                    SyncStatus.Running -> "Sincronizzazione in corso…" to c.textSecondary
+                    is SyncStatus.Done ->
+                        ("Sincronizzato alle ${formatTime(st.at)}: ${st.sent} inviati, ${st.added} nuovi" +
+                            if (st.refused > 0) " · ${st.refused} non modificabili" else "") to c.textSecondary
+                    is SyncStatus.Failed -> "Sincronizzazione non riuscita: ${st.message}" to c.error
+                }
+                Text(syncText, color = syncColor, modifier = Modifier.padding(top = 8.dp))
+                TextButton(onClick = vm::syncNow, enabled = sync != SyncStatus.Running) {
+                    Text("Sincronizza ora", color = c.accent)
+                }
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SecondaryButton("Esci", onClick = vm::signOut)
                     TextButton(onClick = { confirmDelete = true }) {
                         Text("Elimina account", color = c.error)

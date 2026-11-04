@@ -16,7 +16,9 @@ import it.gymlog.app.data.repo.ExerciseRepository
 import it.gymlog.app.data.repo.PhotoStore
 import it.gymlog.app.data.repo.ProgramRepository
 import it.gymlog.app.data.remote.AuthRepository
+import it.gymlog.app.data.remote.SupabaseCatalogRemote
 import it.gymlog.app.data.remote.SupabaseProvider
+import it.gymlog.app.data.sync.CatalogSyncRunner
 import it.gymlog.app.data.repo.WorkoutRepository
 import it.gymlog.app.data.settings.AppIcons
 import it.gymlog.app.data.settings.SettingsRepository
@@ -50,19 +52,24 @@ class AppContainer(context: Context) {
     val backup = BackupExporter(appContext, db)
     val csv = WorkoutCsvExporter(db)
     val photos = PhotoStore(appContext.filesDir)
-    val exercises = ExerciseRepository(db, photos)
+    private val supabase = SupabaseProvider.create(appContext)
+    val auth = AuthRepository(supabase, BuildConfig.GOOGLE_WEB_CLIENT_ID)
+    val catalogSync = supabase
+        ?.let { CatalogSyncRunner(db, SupabaseCatalogRemote(it), auth, appScope) }
+    val exercises = ExerciseRepository(db, photos) { catalogSync?.requestSync() }
     val body = BodyRepository(db)
     val programs = ProgramRepository(db)
     val workouts = WorkoutRepository(db, settings)
     val restTimer: RestTimer = RestTimerImpl(onActive = { RestTimerService.start(appContext) })
-    val auth = AuthRepository(SupabaseProvider.create(appContext), BuildConfig.GOOGLE_WEB_CLIENT_ID)
 
     init {
+        appScope.launch { auth.observe() }
         appScope.launch {
             SeedData.seedIfEmpty(db)
             // Allinea l'icona del launcher alle impostazioni (utile dopo un ripristino del backup).
             runCatching { AppIcons.apply(appContext, settings.current().appIcon) }
-            appScope.launch { auth.observe() }
+            // Solo dopo il seed: il primo accesso carica il catalogo già presente.
+            catalogSync?.start()
             autoBackupIfDue()
         }
     }

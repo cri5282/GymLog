@@ -30,7 +30,12 @@ class DuplicateNameException(name: String) : Exception("Esiste già un esercizio
 class DuplicateHevyNameException(hevyName: String, usedBy: String) :
     Exception("Il nome Hevy \"$hevyName\" è già usato da \"$usedBy\"")
 
-class ExerciseRepository(private val db: AppDatabase, private val photos: PhotoStore) {
+class ExerciseRepository(
+    private val db: AppDatabase,
+    private val photos: PhotoStore,
+    /** Avvisa che il catalogo condiviso va riallineato (nessun effetto senza account). */
+    private val onSharedChange: () -> Unit = {},
+) {
     private val dao = db.exerciseDao()
 
     fun observeLibrary(query: String, muscle: Muscle?): Flow<List<ExerciseWithDetails>> =
@@ -46,28 +51,43 @@ class ExerciseRepository(private val db: AppDatabase, private val photos: PhotoS
     fun observe(id: Long): Flow<ExerciseWithDetails?> = dao.observeWithDetails(id)
 
     /** Crea o aggiorna; lancia [DuplicateNameException] se il nome è già usato da un altro esercizio. */
-    suspend fun save(draft: ExerciseDraft): Long = db.withTransaction {
-        val name = draft.name.trim()
-        require(name.isNotEmpty()) { "Il nome è obbligatorio" }
-        dao.findByName(name)?.let { if (it.id != draft.id) throw DuplicateNameException(name) }
-        val hevyName = draft.hevyName?.trim()?.ifEmpty { null }
-        hevyName?.let { h -> dao.findByHevyName(h)?.let { if (it.id != draft.id) throw DuplicateHevyNameException(h, it.name) } }
-        val existing = if (draft.id != 0L) dao.getWithDetails(draft.id)?.exercise else null
-        val exercise = Exercise(
-            id = draft.id,
-            name = name,
-            primaryMuscle = draft.primary,
-            lengthBias = draft.bias,
-            executionNotes = draft.notes.trim(),
-            hevyName = hevyName,
-            loadStepKg = draft.loadStepKg,
-            archived = existing?.archived ?: false,
-            needsReview = false,
-            single = draft.single,
-        )
-        val id = if (existing == null) dao.insert(exercise.copy(id = 0)) else { dao.update(exercise); draft.id }
-        dao.replaceSecondary(id, draft.secondary.filter { it != draft.primary })
-        id
+    suspend fun save(draft: ExerciseDraft): Long {
+        val id = db.withTransaction {
+            val name = draft.name.trim()
+            require(name.isNotEmpty()) { "Il nome è obbligatorio" }
+            dao.findByName(name)?.let { if (it.id != draft.id) throw DuplicateNameException(name) }
+            val hevyName = draft.hevyName?.trim()?.ifEmpty { null }
+            hevyName?.let { h ->
+                dao.findByHevyName(h)?.let { if (it.id != draft.id) throw DuplicateHevyNameException(h, it.name) }
+            }
+            val existing = if (draft.id != 0L) dao.getWithDetails(draft.id)?.exercise else null
+            val exercise = Exercise(
+                id = draft.id,
+                name = name,
+                primaryMuscle = draft.primary,
+                lengthBias = draft.bias,
+                executionNotes = draft.notes.trim(),
+                hevyName = hevyName,
+                loadStepKg = draft.loadStepKg,
+                archived = existing?.archived ?: false,
+                needsReview = false,
+                single = draft.single,
+                // I campi del catalogo condiviso non si perdono modificando note o passo di carico.
+                remoteId = existing?.remoteId,
+                remoteCreatedBy = existing?.remoteCreatedBy,
+                dirty = existing?.remoteId != null,
+                sharedImageKey = existing?.sharedImageKey,
+                pendingImageFile = existing?.pendingImageFile,
+            )
+            if (existing == null) {
+                dao.insert(exercise.copy(id = 0))
+            } else {
+                dao.update(exercise)
+                draft.id
+            }.also { id -> dao.replaceSecondary(id, draft.secondary.filter { it != draft.primary }) }
+        }
+        onSharedChange()
+        return id
     }
 
     suspend fun isUsed(id: Long): Boolean = dao.isUsed(id)

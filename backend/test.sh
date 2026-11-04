@@ -32,6 +32,7 @@ run() {
 
 run < supabase/tests/00_stub.sql
 run < supabase/migrations/20261104120000_catalog.sql
+run < supabase/migrations/20261104130000_tombstones.sql
 run < supabase/tests/10_catalog.sql
 
 echo "backend: ok"

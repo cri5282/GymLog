@@ -223,8 +223,9 @@ select public.admin_delete_exercise('11111111-1111-1111-1111-111111111111');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
 select public.t_ok(
-    not exists (select 1 from public.exercises where id = '11111111-1111-1111-1111-111111111111'),
-    'l''esercizio cancellato sparisce agli utenti');
+    exists (select 1 from public.exercises
+            where id = '11111111-1111-1111-1111-111111111111' and deleted_at is not null),
+    'l''utente normale vede il tombstone e può archiviare l''esercizio');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
 select public.t_ok(
