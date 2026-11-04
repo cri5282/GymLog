@@ -56,6 +56,10 @@ android {
     sourceSets.getByName("debug").assets.srcDir("$projectDir/schemas")
 }
 
+// KSP scrive gli schemi durante la compilazione: senza questo ordine, aggiungendo una versione
+// il merge degli asset può partire prima e i test non trovano il JSON nuovo.
+tasks.matching { it.name == "mergeDebugAssets" }.configureEach { dependsOn("kspDebugKotlin") }
+
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 
 dependencies {

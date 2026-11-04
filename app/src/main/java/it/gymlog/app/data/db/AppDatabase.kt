@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WorkoutSession::class, SetEntry::class,
         BodyEntry::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -67,9 +67,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Catalogo condiviso: solo colonne nuove e nullable, nessuna riga toccata. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE Exercise ADD COLUMN remoteId TEXT")
+                db.execSQL("ALTER TABLE Exercise ADD COLUMN remoteCreatedBy TEXT")
+                db.execSQL("ALTER TABLE Exercise ADD COLUMN dirty INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE Exercise ADD COLUMN sharedImageKey TEXT")
+                db.execSQL("ALTER TABLE Exercise ADD COLUMN pendingImageFile TEXT")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

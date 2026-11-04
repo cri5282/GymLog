@@ -22,6 +22,15 @@ data class Exercise(
     val needsReview: Boolean = false,
     /** Esercizio unilaterale: peso, reps e RIR separati tra lato sinistro e destro. */
     @ColumnInfo(defaultValue = "0") val single: Boolean = false,
+    /** Catalogo condiviso: null finché l'esercizio esiste solo su questo telefono. */
+    val remoteId: String? = null,
+    val remoteCreatedBy: String? = null,
+    /** Campi condivisi modificati in locale, da inviare alla prossima sincronizzazione. */
+    @ColumnInfo(defaultValue = "0") val dirty: Boolean = false,
+    /** Chiave dell'immagine condivisa nel bucket; l'URL si compone con la base Supabase. */
+    val sharedImageKey: String? = null,
+    /** Immagine elaborata pronta da caricare appena torna la rete. */
+    val pendingImageFile: String? = null,
 )
 
 @Entity(

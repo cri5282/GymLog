@@ -266,7 +266,10 @@ GymLog è un progetto Android a modulo singolo, organizzato per responsabilità:
 
 ## Modello dati
 
-Il database Room `gymlog.db` è alla versione **3** e ha migrazioni esplicite `1 → 2` e `2 → 3`.
+Il database Room `gymlog.db` è alla versione **4** e ha migrazioni esplicite `1 → 2`, `2 → 3` e `3 → 4`.
+La 4 aggiunge all'esercizio le colonne del catalogo condiviso (`remoteId`, `remoteCreatedBy`,
+`dirty`, `sharedImageKey`, `pendingImageFile`): solo `ADD COLUMN`, con l'esercizio ancora
+utilizzabile senza account.
 
 | Tabella | Contenuto |
 | --- | --- |
@@ -418,10 +421,13 @@ scripts/test.sh
 
 # Build dell'APK release firmato e copia in dist/
 scripts/build-apk.sh
+
+# Regole del backend Supabase (Docker, Postgres usa-e-getta)
+backend/test.sh
 ```
 
 `scripts/build-apk.sh` esegue `clean`, i test e `assembleRelease`, verifica la firma e copia il file
-in `dist/GymLog-<versione>.apk`. La suite attuale conta **190 test JVM**.
+in `dist/GymLog-<versione>.apk`. La suite attuale conta **192 test JVM**.
 
 L'APK pronto per l'installazione è `dist/GymLog-1.5.0.apk`. Per installarlo e aggiornarlo sul
 telefono segui [INSTALLA.md](INSTALLA.md).

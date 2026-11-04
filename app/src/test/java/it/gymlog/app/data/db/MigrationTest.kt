@@ -85,4 +85,39 @@ class MigrationTest {
         helper.createDatabase("migration-empty", 1).close()
         helper.runMigrationsAndValidate("migration-empty", 2, true, AppDatabase.MIGRATION_1_2).close()
     }
+
+    @Test fun migrate3To4_addsCatalogColumnsAndKeepsRows() {
+        val cols = listOf(
+            "id", "name", "primaryMuscle", "lengthBias", "executionNotes",
+            "hevyName", "loadStepKg", "archived", "needsReview", "single",
+        )
+        var before: List<List<String?>> = emptyList()
+        helper.createDatabase("migration-3-4", 3).use { db ->
+            db.execSQL(
+                "INSERT INTO Exercise (id, name, primaryMuscle, lengthBias, executionNotes, hevyName, loadStepKg, archived, needsReview, single) VALUES " +
+                    "(1, 'Panca piana', 'PETTO', 'NONE', 'Scapole addotte', 'Bench Press (Barbell)', 2.5, 0, 0, 0)"
+            )
+            before = dump(db, "Exercise", cols)
+        }
+        val migrated = helper.runMigrationsAndValidate("migration-3-4", 4, true, AppDatabase.MIGRATION_3_4)
+
+        assertEquals("le colonne già esistenti non cambiano", before, dump(migrated, "Exercise", cols))
+        assertEquals(
+            listOf(listOf(null, null, "0", null, null)),
+            dump(migrated, "Exercise", listOf("remoteId", "remoteCreatedBy", "dirty", "sharedImageKey", "pendingImageFile")),
+        )
+        migrated.close()
+    }
+
+    @Test fun migrate1To4_chainKeepsData() {
+        helper.createDatabase("migration-chain", 1).use { db -> seedV1(db) }
+        val migrated = helper.runMigrationsAndValidate(
+            "migration-chain", 4, true,
+            AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4,
+        )
+        assertEquals(listOf(listOf("1"), listOf("2")), dump(migrated, "Exercise", listOf("id")))
+        assertEquals(listOf(listOf("1"), listOf("2"), listOf("3")), dump(migrated, "SetEntry", listOf("id")))
+        assertEquals(listOf(listOf("1")), dump(migrated, "Program", listOf("id")))
+        migrated.close()
+    }
 }
