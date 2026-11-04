@@ -15,6 +15,8 @@ import it.gymlog.app.data.repo.BodyRepository
 import it.gymlog.app.data.repo.ExerciseRepository
 import it.gymlog.app.data.repo.PhotoStore
 import it.gymlog.app.data.repo.ProgramRepository
+import it.gymlog.app.data.remote.AuthRepository
+import it.gymlog.app.data.remote.SupabaseProvider
 import it.gymlog.app.data.repo.WorkoutRepository
 import it.gymlog.app.data.settings.AppIcons
 import it.gymlog.app.data.settings.SettingsRepository
@@ -53,12 +55,14 @@ class AppContainer(context: Context) {
     val programs = ProgramRepository(db)
     val workouts = WorkoutRepository(db, settings)
     val restTimer: RestTimer = RestTimerImpl(onActive = { RestTimerService.start(appContext) })
+    val auth = AuthRepository(SupabaseProvider.create(appContext), BuildConfig.GOOGLE_WEB_CLIENT_ID)
 
     init {
         appScope.launch {
             SeedData.seedIfEmpty(db)
             // Allinea l'icona del launcher alle impostazioni (utile dopo un ripristino del backup).
             runCatching { AppIcons.apply(appContext, settings.current().appIcon) }
+            appScope.launch { auth.observe() }
             autoBackupIfDue()
         }
     }

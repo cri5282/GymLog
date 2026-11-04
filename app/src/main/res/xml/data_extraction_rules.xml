@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- La sessione Supabase non deve finire nei backup: dopo un ripristino si rifà il login. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="gymlog-auth.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="gymlog-auth.xml" />
+    </device-transfer>
+</data-extraction-rules>

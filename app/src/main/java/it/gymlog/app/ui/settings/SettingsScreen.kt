@@ -55,19 +55,25 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import it.gymlog.app.data.remote.AuthState
 import it.gymlog.app.data.settings.Accent
 import it.gymlog.app.data.settings.AppIcon
 import it.gymlog.app.data.settings.OneRmFormula
 import it.gymlog.app.data.settings.Sex
 import it.gymlog.app.data.settings.ThemeMode
 import it.gymlog.app.ui.common.ConfirmDialog
+import it.gymlog.app.ui.common.findActivity
 import it.gymlog.app.ui.common.appViewModel
 import it.gymlog.app.ui.common.formatDate
 import it.gymlog.app.ui.common.formatKg
 import it.gymlog.app.ui.common.parseDecimal
+import it.gymlog.app.ui.design.AccentPill
 import it.gymlog.app.ui.design.Gym
+import it.gymlog.app.ui.design.AccentPill
 import it.gymlog.app.ui.design.GymCard
+import it.gymlog.app.ui.design.AccentPill
 import it.gymlog.app.ui.design.GymChip
+import it.gymlog.app.ui.design.AccentPill
 import it.gymlog.app.ui.design.GymSwitchRow
 import it.gymlog.app.ui.design.PrimaryButton
 import it.gymlog.app.ui.design.ScreenHeader
@@ -78,6 +84,7 @@ import java.time.LocalDate
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val vm = appViewModel { SettingsViewModel(it.settings, it.hevyImporter, it.backup, it.csv) }
+    val account = appViewModel { AccountViewModel(it.auth) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     val importState by vm.import.collectAsStateWithLifecycle()
     val backupMessage by vm.backupMessage.collectAsStateWithLifecycle()
@@ -109,6 +116,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
         ScreenHeader("Impostazioni")
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (account.available) AccountSection(account)
             SectionLabel("Aspetto")
             GymCard {
                 Text("Tema", color = c.textSecondary)
@@ -362,4 +370,74 @@ private fun NumberSetting(
         keyboardOptions = KeyboardOptions(keyboardType = type),
         singleLine = true, shape = RoundedCornerShape(14.dp), modifier = modifier,
     )
+}
+
+@Composable
+private fun AccountSection(vm: AccountViewModel) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val c = Gym.colors
+    val context = LocalContext.current
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    SectionLabel("Account e catalogo condiviso")
+    GymCard {
+        when (val s = state) {
+            AuthState.Unavailable -> Unit
+            AuthState.SignedOut -> {
+                Text(
+                    "Accedi con Google per condividere gli esercizi con gli altri utenti. " +
+                        "Senza account l'app funziona come prima.",
+                    color = c.textSecondary,
+                )
+                PrimaryButton(
+                    "Accedi con Google",
+                    onClick = { vm.signIn(context.findActivity()) },
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+            AuthState.Loading -> Row(
+                Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                CircularProgressIndicator(color = c.accent, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                Text("Verifica dell'account…", color = c.textSecondary)
+            }
+            is AuthState.SignedIn -> {
+                Text(s.name ?: s.email, color = c.text)
+                if (s.name != null) Text(s.email, color = c.textSecondary)
+                if (s.isAdmin) AccentPill("Admin", modifier = Modifier.padding(top = 8.dp))
+                Text(
+                    "Note, allenamenti, schede e foto restano su questo telefono.",
+                    color = c.textSecondary,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SecondaryButton("Esci", onClick = vm::signOut)
+                    TextButton(onClick = { confirmDelete = true }) {
+                        Text("Elimina account", color = c.error)
+                    }
+                }
+            }
+            is AuthState.Error -> {
+                Text(s.message, color = c.error)
+                PrimaryButton(
+                    "Riprova",
+                    onClick = { vm.signIn(context.findActivity()) },
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        }
+    }
+
+    if (confirmDelete) {
+        ConfirmDialog(
+            title = "Eliminare l'account?",
+            message = "Gli esercizi che hai condiviso restano nel catalogo senza il tuo nome. " +
+                "Allenamenti, schede e foto restano su questo telefono.",
+            confirmLabel = "Elimina",
+            onConfirm = { confirmDelete = false; vm.deleteAccount() },
+            onDismiss = { confirmDelete = false },
+        )
+    }
 }
