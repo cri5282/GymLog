@@ -11,6 +11,7 @@ import it.gymlog.app.data.db.SetWithSession
 import it.gymlog.app.data.db.SetType
 import it.gymlog.app.data.db.StatSet
 import it.gymlog.app.data.db.WorkoutSession
+import it.gymlog.app.data.db.WorkoutExerciseLayout
 import it.gymlog.app.data.settings.SettingsRepository
 import it.gymlog.app.domain.SetDraft
 import it.gymlog.app.domain.Target
@@ -65,6 +66,12 @@ class WorkoutRepository(
     }
 
     suspend fun getSession(id: Long): WorkoutSession? = dao.getSession(id)
+    suspend fun exerciseLayout(sessionId: Long, exerciseOrder: Int): WorkoutExerciseLayout? =
+        dao.getExerciseLayout(sessionId, exerciseOrder)
+    suspend fun saveExerciseLayout(sessionId: Long, exerciseOrder: Int, slots: List<Int?>) =
+        dao.saveExerciseLayout(WorkoutExerciseLayout(
+            sessionId, exerciseOrder, slots.size, slots.joinToString(",") { it?.toString() ?: "-1" },
+        ))
 
     /**
      * Se un allenamento è rimasto aperto da molte ore (tipicamente da un giorno precedente),
@@ -178,6 +185,15 @@ class WorkoutRepository(
     suspend fun getSet(id: Long): SetEntry? = dao.getSet(id)
     suspend fun updateSet(set: SetEntry) = dao.updateSet(set)
     suspend fun deleteSet(set: SetEntry) = dao.deleteSet(set)
+    suspend fun removeSetAndReindex(
+        sessionId: Long, exerciseOrder: Int, removed: SetEntry?, reindexed: List<SetEntry>, slots: List<Int?>,
+    ) = db.withTransaction {
+        removed?.let { dao.deleteSet(it) }
+        reindexed.forEach { dao.updateSet(it) }
+        dao.saveExerciseLayout(WorkoutExerciseLayout(
+            sessionId, exerciseOrder, slots.size, slots.joinToString(",") { it?.toString() ?: "-1" },
+        ))
+    }
     /** Reinserisce una serie rimossa conservandone l'id (usato da "Annulla"). */
     suspend fun restoreSet(set: SetEntry) = dao.insertSet(set)
     suspend fun deleteSession(session: WorkoutSession) = dao.deleteSession(session)

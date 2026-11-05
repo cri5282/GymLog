@@ -58,7 +58,8 @@ Come funziona:
   Google GymLog e tocca **Autorizza**. La revoca è disponibile accanto all'email.
 - Da quel momento la nuova foto aggiunta diventa automaticamente quella condivisa; le altre foto
   personali già presenti sul telefono non vengono caricate retroattivamente.
-- **Sincronizza ora** resta disponibile come comando manuale.
+- **Sincronizza ora** resta disponibile come comando manuale; inoltre l'app si sincronizza da sola
+  ogni 12 ore, anche quando è chiusa, se c'è connessione.
 
 ## Aggiornare alla 1.5.2 (prima sincronizzazione reale)
 

@@ -118,6 +118,7 @@ fun ExerciseEditScreen(
         if (uri != null) vm.onPhotoPicked(uri, context.contentResolver)
     }
     var confirmDelete by remember { mutableStateOf<Boolean?>(null) }
+    var confirmDeleteShared by remember { mutableStateOf(false) }
     var confirmRemoveShared by remember { mutableStateOf(false) }
 
     val c = Gym.colors
@@ -227,6 +228,15 @@ fun ExerciseEditScreen(
                     singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
                 )
             }
+            if (showDelete && signedIn?.isAdmin == true && details?.exercise?.remoteId != null) {
+                SectionLabel("Catalogo condiviso")
+                GymCard {
+                    Text("L'esercizio sparirà dalla libreria di tutti gli utenti. Storico e schede personali restano sul telefono.", color = c.textSecondary)
+                    TextButton(onClick = { confirmDeleteShared = true }, modifier = Modifier.padding(top = 8.dp)) {
+                        Text("Elimina dal catalogo condiviso", color = c.error)
+                    }
+                }
+            }
             Spacer(Modifier.height(16.dp))
         }
         PrimaryButton("Salva", { vm.save(onBack) }, Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding())
@@ -249,6 +259,13 @@ fun ExerciseEditScreen(
         )
     }
 
+    if (confirmDeleteShared) ConfirmDialog(
+        title = "Eliminare dal catalogo condiviso?",
+        message = "L'esercizio verrà rimosso per tutti gli utenti. Chi lo usa lo ritroverà archiviato; lo storico resta.",
+        confirmLabel = "Elimina",
+        onConfirm = { confirmDeleteShared = false; vm.deleteShared { onBack() } },
+        onDismiss = { confirmDeleteShared = false },
+    )
     if (confirmRemoveShared) ConfirmDialog(
         title = "Rimuovere l'immagine condivisa?",
         message = "Non sarà più visibile agli utenti. Le foto locali resteranno sul dispositivo.",
@@ -257,7 +274,7 @@ fun ExerciseEditScreen(
         onDismiss = { confirmRemoveShared = false },
     )
     shareError?.let { error ->
-        AlertDialog(onDismissRequest = vm::dismissShareError, title = { Text("Foto non pubblicata") },
+        AlertDialog(onDismissRequest = vm::dismissShareError, title = { Text("Operazione non riuscita") },
             text = { Text(error) }, confirmButton = { TextButton(onClick = vm::dismissShareError) { Text("OK") } })
     }
 }

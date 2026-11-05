@@ -52,7 +52,7 @@ class AuthRepository(
     private val googleClientId: String,
 ) {
     private val _state = MutableStateFlow<AuthState>(
-        if (client == null) AuthState.Unavailable else AuthState.SignedOut
+        if (client == null) AuthState.Unavailable else AuthState.Loading
     )
     val state: StateFlow<AuthState> = _state.asStateFlow()
 

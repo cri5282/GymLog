@@ -15,6 +15,7 @@ import it.gymlog.app.domain.recordsBeaten
 import it.gymlog.app.timer.RestTimer
 import it.gymlog.app.timer.TimerState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 
 data class RowState(
@@ -37,6 +39,8 @@ data class RowState(
     val weightKgR: Double? = null,
     val repsR: Int? = null,
     val rirR: Int? = null,
+    /** Riga di precompilamento da cui deriva; conserva lo spostamento dopo una rimozione. */
+    val prefillIndex: Int? = null,
 ) {
     val done: Boolean get() = entry != null
 }
@@ -93,15 +97,25 @@ class WorkoutViewModel(
     private suspend fun page(p: PlannedExercise): PageState {
         // Una riga per posizione di serie (setIndex): le serie confermate restano al loro posto anche se fatte fuori ordine.
         val bySlot = p.done.associateBy { it.setIndex }
-        val count = maxOf(p.prefill.size, (bySlot.keys.maxOrNull() ?: -1) + 1)
+        val layout = workouts.exerciseLayout(sessionId, p.order)
+        val prefillSlots = layout?.prefillSlots?.split(',')?.mapNotNull(String::toIntOrNull)
+        val count = maxOf(
+            layout?.rowCount ?: p.prefill.size,
+            (bySlot.keys.maxOrNull() ?: -1) + 1,
+        )
         val single = p.exercise.exercise.single
         val rows = (0 until count).map { i ->
+            val sourceIndex = prefillSlots?.getOrNull(i) ?: i
+            val source = if (sourceIndex >= 0) p.prefill.getOrNull(sourceIndex) ?: p.prefill.lastOrNull()
+                else p.prefill.lastOrNull()
             val row = bySlot[i]?.let {
-                RowState(it.weightKg, it.reps, it.rir, it.setType, it.notes, entry = it, weightKgR = it.weightKgR, repsR = it.repsR, rirR = it.rirR)
-            } ?: (p.prefill.getOrNull(i) ?: p.prefill.lastOrNull())
-                ?.let { RowState(it.weightKg, it.reps, it.rir, it.type, weightKgR = it.weightKgR, repsR = it.repsR, rirR = it.rirR) }
-                ?: RowState(0.0, 0, null, SetType.WORKING)
-            row.forSide(single)
+                RowState(it.weightKg, it.reps, it.rir, it.setType, it.notes, entry = it,
+                    weightKgR = it.weightKgR, repsR = it.repsR, rirR = it.rirR)
+            } ?: source?.let {
+                RowState(it.weightKg, it.reps, it.rir, it.type,
+                    weightKgR = it.weightKgR, repsR = it.repsR, rirR = it.rirR)
+            } ?: RowState(0.0, 0, null, SetType.WORKING)
+            row.copy(prefillIndex = sourceIndex.takeIf { it >= 0 }).forSide(single)
         }
         val step = p.exercise.exercise.loadStepKg ?: settings.current().defaultLoadStepKg
         return PageState(p, rows, step)
@@ -175,6 +189,7 @@ class WorkoutViewModel(
             try {
                 val id = workouts.confirmSet(sessionId, exerciseId, order, row, draft, r.notes)
                 val entry = workouts.getSet(id)
+                saving.remove(page to row)
                 editRow(page, row) { it.copy(entry = entry) }
                 _state.update { it.copy(selectedRow = it.selectedRow - page) }
                 // In superserie il recupero parte solo dopo l'ultimo esercizio del gruppo.
@@ -236,8 +251,10 @@ class WorkoutViewModel(
         }
         lastRemoved = RemovedRow(page, row, removed, selectedBefore = selectedBefore)
         lastRemovalJob = viewModelScope.launch {
-            removed.entry?.let { workouts.deleteSet(it) }
-            reindexed.forEach { workouts.updateSet(it) }
+            // La rimozione è già visibile: completa la scrittura anche se si esce dalla schermata.
+            withContext(NonCancellable) {
+                workouts.removeSetAndReindex(sessionId, p.planned.order, removed.entry, reindexed, rows.map { it.prefillIndex })
+            }
         }
         _events.tryEmit(WorkoutEvent.RowRemoved("Serie rimossa"))
     }
@@ -271,6 +288,7 @@ class WorkoutViewModel(
             }
             undo.row.entry?.let { workouts.restoreSet(it.copy(setIndex = index)) }
             rows.forEach { r -> r.entry?.let { workouts.updateSet(it) } }
+            workouts.saveExerciseLayout(sessionId, p.planned.order, rows.map { it.prefillIndex })
         }
     }
 
@@ -296,7 +314,10 @@ class WorkoutViewModel(
             selected[page]?.let { sel -> if (sel >= at) selected[page] = sel + 1 }
             s.copy(pages = pages, selectedRow = selected)
         }
-        viewModelScope.launch { rows.forEach { r -> r.entry?.let { workouts.updateSet(it) } } }
+        viewModelScope.launch {
+            rows.forEach { r -> r.entry?.let { workouts.updateSet(it) } }
+            workouts.saveExerciseLayout(sessionId, p.planned.order, rows.map { it.prefillIndex })
+        }
     }
 
     /** Riga espansa della pagina. */
@@ -349,16 +370,23 @@ class WorkoutViewModel(
         }
     }
 
-    fun addSet(page: Int) = _state.update { s ->
-        val pages = s.pages.toMutableList()
-        val p = pages.getOrNull(page) ?: return@update s
-        val last = p.rows.lastOrNull()
+    fun addSet(page: Int) {
+        val pageState = _state.value.pages.getOrNull(page) ?: return
+        val last = pageState.rows.lastOrNull()
         val row = RowState(
             last?.weightKg ?: 0.0, last?.reps ?: 0, last?.rir, last?.type ?: SetType.WORKING,
             weightKgR = last?.weightKgR, repsR = last?.repsR, rirR = last?.rirR,
-        ).forSide(p.single)
-        pages[page] = p.copy(rows = p.rows + row)
-        s.copy(pages = pages)
+            prefillIndex = last?.prefillIndex,
+        ).forSide(pageState.single)
+        _state.update { s ->
+            val pages = s.pages.toMutableList()
+            val current = pages.getOrNull(page) ?: return@update s
+            pages[page] = current.copy(rows = current.rows + row)
+            s.copy(pages = pages)
+        }
+        viewModelScope.launch {
+            workouts.saveExerciseLayout(sessionId, pageState.planned.order, (pageState.rows + row).map { it.prefillIndex })
+        }
     }
 
     fun addExercise(exerciseId: Long) = viewModelScope.launch {

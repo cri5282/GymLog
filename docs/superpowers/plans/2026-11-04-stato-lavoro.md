@@ -40,6 +40,8 @@ Piano di riferimento: `docs/superpowers/plans/2026-11-04-gymlog-catalogo-condivi
 - `data/sync/CatalogSyncRunner.kt`: sync al login, all'avvio e 5 s dopo un salvataggio; Realtime
   richiede un nuovo scambio quando un altro dispositivo modifica il catalogo; `SyncStatus` con
   esito, modifiche rifiutate e immagini non pubblicate.
+- `data/sync/SyncWorker.kt`: sync periodica ogni 12 h con vincolo di rete e backoff esponenziale,
+  anche ad app chiusa. `CatalogSyncScheduler` registra un solo lavoro periodico (`KEEP`).
 - Consenso esplicito **per account**: finché non viene dato, nessun esercizio lascia il telefono.
   L'UID che ha acconsentito è salvato in `Settings.catalogConsentFor`; un altro account sullo
   stesso telefono deve acconsentire di nuovo.
@@ -56,7 +58,7 @@ Piano di riferimento: `docs/superpowers/plans/2026-11-04-gymlog-catalogo-condivi
 - `PhotoCarousel` e le miniature mostrano prima l'immagine remota (Coil, URL pubblico), poi le foto
   locali.
 - Admin: autorizza/revoca gli editor da *Impostazioni → Account → Permessi immagini*; può rimuovere
-  l'immagine condivisa dalla schermata di modifica dell'esercizio.
+  l'immagine condivisa e eliminare un esercizio dal catalogo condiviso dalla schermata dell'esercizio.
 - Utente normale: le foto restano locali e non vengono pubblicate.
 
 ### Android – interfaccia catalogo
@@ -87,10 +89,10 @@ Piano di riferimento: `docs/superpowers/plans/2026-11-04-gymlog-catalogo-condivi
 
 | Area | Stato | Cosa manca |
 | --- | --- | --- |
-| Sincronizzazione | Login, avvio, salvataggio e Realtime con app aperta. | Nessun `WorkManager`: a app chiusa non c'è sync periodica né retry con backoff. Alla riapertura si riallinea. `shortcut` documentato in `CatalogSyncRunner`. |
+| Sincronizzazione | Login, avvio, salvataggio, Realtime con app aperta e lavoro periodico di 12 h con backoff. | L'intervallo non è configurabile dall'utente; per una sync più frequente servirebbe un trigger in background. |
 | Conflitti | Il server rifiuta la modifica e il client la conta in `refused`. | L'avviso è nel riepilogo della sync, non come messaggio immediato sulla schermata dell'esercizio. |
 | Catalogo in UI | Badge, filtro Tutti/Miei, campi bloccati. | Nessun banner informativo la prima volta che appare un esercizio condiviso; nessun prefetch delle immagini della scheda attiva. |
-| Amministrazione | Permessi immagini e rimozione immagine. | Nessuna UI per eliminare un esercizio condiviso (la funzione `admin_delete_exercise` esiste ed è testata). |
+| Amministrazione | Permessi immagini, rimozione immagine ed eliminazione dal catalogo condiviso. | Nessun ripristino di un esercizio cancellato (il soft delete non ha un'azione di undo). |
 | Test su dispositivo | Build e suite automatiche verdi. | La 1.6.0 non è ancora stata provata sul telefono: login, sync reale, Realtime, immagine condivisa e aggiornamento sopra la 1.5.x. |
 
 ## Cosa manca, in ordine
@@ -102,9 +104,7 @@ Piano di riferimento: `docs/superpowers/plans/2026-11-04-gymlog-catalogo-condivi
    consenso, sync iniziale, nessun duplicato, Realtime da un secondo dispositivo, immagine
    condivisa caricata e sostituita, revoca del permesso, logout.
 3. **Rigenerare l'APK** con `scripts/build-apk.sh` e verificare `versionCode 11` / `versionName 1.6.0`.
-4. **WorkManager** (facoltativo per la 1.6.0): `SyncWorker` con vincolo rete, backoff e periodico
-   12 h, riusando `CatalogSyncRunner.syncNow()`.
-5. **Eventuale UI admin** per eliminare un esercizio condiviso, se serve davvero.
+4. **Eventuale ripristino** di un esercizio eliminato dal catalogo, se servirà.
 
 ## Regole da non perdere
 

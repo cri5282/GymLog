@@ -199,6 +199,12 @@ interface WorkoutDao {
     @Query("SELECT * FROM SetEntry WHERE sessionId = :sessionId ORDER BY exerciseOrder, setIndex, id")
     suspend fun getSets(sessionId: Long): List<SetEntry>
 
+    @Query("SELECT * FROM WorkoutExerciseLayout WHERE sessionId = :sessionId AND exerciseOrder = :exerciseOrder")
+    suspend fun getExerciseLayout(sessionId: Long, exerciseOrder: Int): WorkoutExerciseLayout?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveExerciseLayout(layout: WorkoutExerciseLayout)
+
     @Query("SELECT * FROM SetEntry WHERE id = :id")
     suspend fun getSet(id: Long): SetEntry?
 

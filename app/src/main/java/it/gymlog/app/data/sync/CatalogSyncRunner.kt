@@ -5,6 +5,7 @@ import it.gymlog.app.data.db.AppDatabase
 import it.gymlog.app.data.remote.AuthRepository
 import it.gymlog.app.data.remote.AuthState
 import it.gymlog.app.data.remote.CatalogRemote
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -34,10 +35,7 @@ sealed interface SyncStatus {
 }
 
 /**
- * Fa partire [CatalogSync] quando l'utente accede e dopo ogni modifica locale.
- *
- * `shortcut: niente lavoro in background a app chiusa; sincronizza all'avvio, al login e dopo
- * un salvataggio (attesa di 5 s per accorpare). Aggiungere WorkManager se serve il periodo 12 h.`
+ * Sincronizza al login, dopo le modifiche locali e con WorkManager quando l'app è chiusa.
  */
 class CatalogSyncRunner(
     private val db: AppDatabase,
@@ -69,16 +67,15 @@ class CatalogSyncRunner(
         }
     }
 
-    suspend fun syncNow() {
-        // Se l'account è cambiato durante l'attesa, vince lo stato corrente.
-        val user = auth.state.value as? AuthState.SignedIn ?: return
-        if (!hasConsent(user.uid)) return
-        _status.value = SyncStatus.Running
-        mutex.withLock {
-            runCatching {
-                CatalogSync(db, remote, user.uid, user.isAdmin, user.canManageImages).syncOnce()
-            }.onSuccess { report ->
-                _status.value = SyncStatus.Done(
+    suspend fun syncNow(): SyncStatus? {
+        return mutex.withLock {
+            // Leggi account e consenso dopo aver preso il lock: l'utente può uscire mentre il sync aspetta.
+            val user = auth.state.value as? AuthState.SignedIn ?: return@withLock null
+            if (!hasConsent(user.uid)) return@withLock null
+            _status.value = SyncStatus.Running
+            try {
+                val report = CatalogSync(db, remote, user.uid, user.isAdmin, user.canManageImages).syncOnce()
+                SyncStatus.Done(
                     added = report.added,
                     linked = report.linked,
                     sent = report.pushedNew + report.pushedUpdates,
@@ -86,25 +83,52 @@ class CatalogSyncRunner(
                     refused = report.refused,
                     imagesLost = report.imagesLost,
                     at = System.currentTimeMillis(),
-                )
-            }.onFailure {
+                ).also { _status.value = it }
+            } catch (e: CancellationException) {
+                _status.value = SyncStatus.Idle
+                throw e
+            } catch (e: Exception) {
                 // Le eccezioni HTTP possono includere l'header Authorization: non mostrarlo né registrarlo.
-                Log.w("GymLog", "Sincronizzazione catalogo non riuscita (${it::class.simpleName})")
-                _status.value = SyncStatus.Failed("Errore di sincronizzazione. Riprova più tardi.")
+                Log.w("GymLog", "Sincronizzazione catalogo non riuscita (${e::class.simpleName})")
+                SyncStatus.Failed("Errore di sincronizzazione. Riprova più tardi.")
+                    .also { _status.value = it }
             }
         }
     }
 
     suspend fun clearSharedImage(localId: Long, remoteId: String): Boolean {
-        val user = auth.state.value as? AuthState.SignedIn ?: return false
-        if (!user.canManageImages) return false
-        return runCatching {
-            mutex.withLock {
+        return try {
+            val cleared = mutex.withLock {
+                val user = auth.state.value as? AuthState.SignedIn ?: return@withLock false
+                if (!user.canManageImages) return@withLock false
                 remote.clearImage(remoteId)
                 db.exerciseDao().clearSharedImage(localId)
+                true
             }
-            requestSync()
-            true
-        }.getOrDefault(false)
+            if (cleared) requestSync()
+            cleared
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** Solo admin: cancella dal catalogo condiviso. La copia locale viene gestita dal chiamante. */
+    suspend fun deleteSharedExercise(remoteId: String): Boolean {
+        return try {
+            val deleted = mutex.withLock {
+                val user = auth.state.value as? AuthState.SignedIn ?: return@withLock false
+                if (!user.isAdmin) return@withLock false
+                remote.delete(remoteId)
+                true
+            }
+            if (deleted) requestSync()
+            deleted
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
     }
 }

@@ -5,6 +5,7 @@ import it.gymlog.app.data.db.Exercise
 import it.gymlog.app.data.db.LengthBias
 import it.gymlog.app.data.db.Muscle
 import it.gymlog.app.data.remote.CatalogRemote
+import it.gymlog.app.data.remote.AuthRepository
 import it.gymlog.app.data.remote.InsertResult
 import it.gymlog.app.data.remote.RemoteExercise
 import it.gymlog.app.testutil.inMemoryDb
@@ -40,6 +41,14 @@ class CatalogSyncTest {
 
     private fun sync(remote: FakeRemote, isAdmin: Boolean = false) =
         CatalogSync(db, remote, uid = me, isAdmin = isAdmin)
+
+    @Test fun runnerWithoutConfiguredAccountDoesNotReportSyncSuccess() = runTest {
+        val runner = CatalogSyncRunner(db, FakeRemote(), AuthRepository(null, ""), this)
+
+        assertNull(runner.syncNow())
+        assertFalse(runner.deleteSharedExercise("r-1"))
+        assertTrue(runner.status.value is SyncStatus.Idle)
+    }
 
     private suspend fun local(
         name: String,

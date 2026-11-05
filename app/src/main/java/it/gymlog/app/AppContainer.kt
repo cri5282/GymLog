@@ -19,6 +19,7 @@ import it.gymlog.app.data.remote.AuthRepository
 import it.gymlog.app.data.remote.SupabaseCatalogRemote
 import it.gymlog.app.data.remote.SupabaseProvider
 import it.gymlog.app.data.sync.CatalogSyncRunner
+import it.gymlog.app.data.sync.CatalogSyncScheduler
 import it.gymlog.app.data.repo.WorkoutRepository
 import it.gymlog.app.data.settings.AppIcons
 import it.gymlog.app.data.settings.SettingsRepository
@@ -63,6 +64,11 @@ class AppContainer(context: Context) {
     val restTimer: RestTimer = RestTimerImpl(onActive = { RestTimerService.start(appContext) })
 
     init {
+        if (catalogSync != null) {
+            // In produzione WorkManager è già inizializzato dal provider; in test può non esserlo.
+            runCatching { CatalogSyncScheduler.schedule(appContext) }
+                .onFailure { Log.w("GymLog", "Sync periodica non pianificata", it) }
+        }
         appScope.launch { auth.observe() }
         appScope.launch {
             SeedData.seedIfEmpty(db)

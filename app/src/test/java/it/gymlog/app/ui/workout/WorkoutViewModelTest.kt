@@ -218,6 +218,7 @@ class WorkoutViewModelTest {
                 while (db.workoutDao().getSets(e.session).isNotEmpty()) kotlinx.coroutines.delay(20)
             }
         }
+        assertFalse(vm(e).await { true }.pages[0].rows[0].done)
     }
 
     @Test fun removeRow_unconfirmedRowOnlyChangesTheTable() = runTest {

@@ -436,7 +436,7 @@ backend/test.sh
 ```
 
 `scripts/build-apk.sh` esegue `clean`, i test e `assembleRelease`, verifica la firma e copia il file
-in `dist/GymLog-<versione>.apk`. La suite attuale conta **212 test JVM**.
+in `dist/GymLog-<versione>.apk`. La suite attuale conta **213 test JVM**.
 
 L'APK pronto per l'installazione è `dist/GymLog-1.6.0.apk`. Per installarlo e aggiornarlo sul
 telefono segui [INSTALLA.md](INSTALLA.md).

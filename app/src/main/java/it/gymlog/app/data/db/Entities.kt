@@ -143,6 +143,19 @@ data class SetEntry(
     val rirR: Int? = null,
 )
 
+/** Numero di righe scelto per un esercizio nella singola sessione; null = precompilamento standard. */
+@Entity(
+    tableName = "WorkoutExerciseLayout",
+    primaryKeys = ["sessionId", "exerciseOrder"],
+    foreignKeys = [ForeignKey(entity = WorkoutSession::class, parentColumns = ["id"], childColumns = ["sessionId"], onDelete = ForeignKey.CASCADE)],
+)
+data class WorkoutExerciseLayout(
+    val sessionId: Long,
+    val exerciseOrder: Int,
+    val rowCount: Int,
+    @ColumnInfo(defaultValue = "''") val prefillSlots: String = "",
+)
+
 @Entity(
     tableName = "BodyEntry",
     indices = [Index(value = ["epochDay"], unique = true)],

@@ -159,6 +159,18 @@ class ExerciseEditViewModel(
         }
     }
 
+    /** Admin: toglie l'esercizio dal catalogo condiviso e archivia/elimina la copia locale. */
+    fun deleteShared(onDone: () -> Unit) = viewModelScope.launch {
+        val e = details.value?.exercise ?: return@launch
+        val remoteId = e.remoteId ?: return@launch
+        if (catalogSync?.deleteSharedExercise(remoteId) != true) {
+            _shareError.value = "Eliminazione non riuscita. Controlla la connessione e i permessi admin."
+            return@launch
+        }
+        repo.deleteOrArchive(e.id)
+        onDone()
+    }
+
     fun delete(onDone: (DeleteResult) -> Unit) = viewModelScope.launch {
         val current = _id.value
         _newPhotos.value.forEach { it.delete() }

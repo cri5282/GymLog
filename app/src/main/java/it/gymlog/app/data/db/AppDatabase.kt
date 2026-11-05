@@ -12,10 +12,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         Exercise::class, ExerciseSecondaryMuscle::class, ExercisePhoto::class,
         Program::class, RoutineDay::class, RoutineExercise::class,
-        WorkoutSession::class, SetEntry::class,
+        WorkoutSession::class, SetEntry::class, WorkoutExerciseLayout::class,
         BodyEntry::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -78,9 +78,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `WorkoutExerciseLayout` (`sessionId` INTEGER NOT NULL, `exerciseOrder` INTEGER NOT NULL, `rowCount` INTEGER NOT NULL, `prefillSlots` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`sessionId`, `exerciseOrder`), FOREIGN KEY(`sessionId`) REFERENCES `WorkoutSession`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
     }
 }
