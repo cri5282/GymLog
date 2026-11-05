@@ -55,7 +55,7 @@ class AppContainer(context: Context) {
     private val supabase = SupabaseProvider.create(appContext)
     val auth = AuthRepository(supabase, BuildConfig.GOOGLE_WEB_CLIENT_ID)
     val catalogSync = supabase
-        ?.let { CatalogSyncRunner(db, SupabaseCatalogRemote(it), auth, appScope) }
+        ?.let { CatalogSyncRunner(db, SupabaseCatalogRemote(it), auth, appScope) { uid -> settings.current().catalogConsentFor == uid } }
     val exercises = ExerciseRepository(db, photos) { catalogSync?.requestSync() }
     val body = BodyRepository(db)
     val programs = ProgramRepository(db)

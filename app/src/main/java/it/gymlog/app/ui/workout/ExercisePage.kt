@@ -28,6 +28,7 @@ import it.gymlog.app.data.db.LengthBias
 import it.gymlog.app.domain.SetDraft
 import it.gymlog.app.domain.Target
 import it.gymlog.app.ui.common.PhotoCarousel
+import it.gymlog.app.ui.common.sharedImageUrl
 import it.gymlog.app.ui.common.formatKg
 import it.gymlog.app.ui.design.AccentPill
 import it.gymlog.app.ui.design.Gym
@@ -71,7 +72,7 @@ fun ExercisePage(
     ) {
         item { Text("ESERCIZIO ${index + 1}/$count", style = GymType.label, color = c.textSecondary) }
         item {
-            val photos = p.exercise.sortedPhotos.map { it.filePath }
+            val photos = listOfNotNull(sharedImageUrl(e.sharedImageKey)) + p.exercise.sortedPhotos.map { it.filePath }
             if (photos.isNotEmpty()) PhotoCarousel(photos, height = 240)
             else GymCard(Modifier.aspectRatio(16 / 9f)) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

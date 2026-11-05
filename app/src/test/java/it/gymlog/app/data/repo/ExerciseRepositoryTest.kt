@@ -103,7 +103,7 @@ class ExerciseRepositoryTest {
         repo.save(draft("B").copy(hevyName = "Chest Press"))
     }
 
-    @Test fun save_keepsSharedFields_andMarksOnlySharedDirty() = runTest {
+    @Test fun save_keepsSharedFields_andMarksDirtyOnlyForSharedChanges() = runTest {
         val dao = db.exerciseDao()
         val id = repo.save(draft())
         assertFalse("un esercizio solo locale non è da sincronizzare", dao.getWithDetails(id)!!.exercise.dirty)
@@ -125,8 +125,11 @@ class ExerciseRepositoryTest {
         assertEquals("utente-1", e.remoteCreatedBy)
         assertEquals("utente-1/foto.jpg", e.sharedImageKey)
         assertEquals("/tmp/nuova.jpg", e.pendingImageFile)
-        assertTrue("i campi condivisi modificati vanno inviati", e.dirty)
+        assertFalse("una nota personale non va inviata al catalogo", e.dirty)
         assertEquals(1, notifiche)
+
+        conCatalogo.save(draft().copy(id = id, name = "Pec Deck modificato"))
+        assertTrue("il nome è condiviso e va inviato", dao.getWithDetails(id)!!.exercise.dirty)
     }
 
     @Test fun save_persistsSingleFlag_andKeepsItOnEdit() = runTest {

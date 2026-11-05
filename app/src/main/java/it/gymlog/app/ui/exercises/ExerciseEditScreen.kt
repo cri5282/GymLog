@@ -79,7 +79,11 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import it.gymlog.app.data.db.LengthBias
 import it.gymlog.app.data.db.Muscle
+import it.gymlog.app.data.remote.AuthState
+import it.gymlog.app.domain.canEditShared as sharedEditable
+import it.gymlog.app.ui.common.sharedImageUrl
 import it.gymlog.app.ui.common.PhotoImage
+import it.gymlog.app.ui.common.ConfirmDialog
 import it.gymlog.app.ui.common.appViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -95,10 +99,13 @@ fun ExerciseEditScreen(
     /** Nascosto durante l'allenamento: eliminare l'esercizio lascerebbe serie orfane. */
     showDelete: Boolean = true,
 ) {
-    val vm = appViewModel(key = "exercise-$exerciseId") { ExerciseEditViewModel(exerciseId, it.exercises, it.photos) }
+    val vm = appViewModel(key = "exercise-$exerciseId") { ExerciseEditViewModel(exerciseId, it.exercises, it.photos, it.auth, it.catalogSync) }
     val form by vm.form.collectAsStateWithLifecycle()
     val photos by vm.photos.collectAsStateWithLifecycle()
     val pending by vm.pendingPhotos.collectAsStateWithLifecycle()
+    val details by vm.details.collectAsStateWithLifecycle()
+    val auth by vm.authState.collectAsStateWithLifecycle()
+    val shareError by vm.shareError.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -111,8 +118,12 @@ fun ExerciseEditScreen(
         if (uri != null) vm.onPhotoPicked(uri, context.contentResolver)
     }
     var confirmDelete by remember { mutableStateOf<Boolean?>(null) }
+    var confirmRemoveShared by remember { mutableStateOf(false) }
 
     val c = Gym.colors
+    val signedIn = auth as? AuthState.SignedIn
+    val canEditShared = sharedEditable(details?.exercise?.remoteId, details?.exercise?.remoteCreatedBy, signedIn?.uid, signedIn?.isAdmin == true)
+    val sharedUrl = sharedImageUrl(details?.exercise?.sharedImageKey)
     Column(Modifier.imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Indietro", tint = c.text) }
@@ -128,17 +139,18 @@ fun ExerciseEditScreen(
             Text(if (exerciseId == 0L) "Nuovo esercizio" else "Modifica esercizio", style = GymType.screenTitle, color = c.text,
                 modifier = Modifier.padding(bottom = 8.dp))
             SectionLabel("Dati")
+            if (!canEditShared) Text("Nome, muscoli e tipo sono condivisi e modificabili dal creatore o da un amministratore. Le note e gli altri dati personali restano modificabili.", color = c.textSecondary)
             GymCard {
                 OutlinedTextField(
                     value = form.name, onValueChange = { v -> vm.edit { it.copy(name = v) } },
                     label = { Text("Nome") }, isError = form.nameError != null,
                     supportingText = form.nameError?.let { { Text(it) } },
-                    singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, enabled = canEditShared, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
-                EnumDropdown("Muscolo primario", form.primary, Muscle.entries, { it.label }) { m -> vm.edit { it.copy(primary = m) } }
+                EnumDropdown("Muscolo primario", form.primary, Muscle.entries, { it.label }, enabled = canEditShared) { m -> vm.edit { it.copy(primary = m) } }
                 Spacer(Modifier.height(8.dp))
-                EnumDropdown("Tipo", form.bias, LengthBias.entries, { it.label }) { b -> vm.edit { it.copy(bias = b) } }
+                EnumDropdown("Tipo", form.bias, LengthBias.entries, { it.label }, enabled = canEditShared) { b -> vm.edit { it.copy(bias = b) } }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = form.notes, onValueChange = { v -> vm.edit { it.copy(notes = v) } },
@@ -151,12 +163,14 @@ fun ExerciseEditScreen(
                     Muscle.entries.filter { it != form.primary }.forEach { m ->
                         val selected = m in form.secondary
                         GymChip(m.label, selected = selected,
-                            onClick = { vm.edit { it.copy(secondary = if (selected) it.secondary - m else it.secondary + m) } })
+                            onClick = if (canEditShared) ({ vm.edit { it.copy(secondary = if (selected) it.secondary - m else it.secondary + m) } }) else null)
                     }
                 }
             }
             SectionLabel("Foto del macchinario")
             GymCard {
+                if (signedIn?.canManageImages == true) Text("Ogni nuova foto diventa automaticamente l'immagine predefinita condivisa con gli utenti GymLog.", color = c.textSecondary)
+                else if (signedIn != null) Text("Le foto restano su questo telefono. Solo gli utenti autorizzati pubblicano l'immagine condivisa.", color = c.textSecondary)
                 photos.forEachIndexed { i, p ->
                     PhotoRow(p.filePath, canUp = i > 0, canDown = i < photos.lastIndex,
                         onUp = { vm.movePhoto(p, true) }, onDown = { vm.movePhoto(p, false) }, onDelete = { vm.removePhoto(p) })
@@ -175,10 +189,18 @@ fun ExerciseEditScreen(
                     }, Modifier.weight(1f), Icons.Rounded.PhotoLibrary)
                 }
             }
+            if (sharedUrl != null) {
+                SectionLabel("Immagine condivisa")
+                GymCard {
+                    PhotoImage(sharedUrl, Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(12.dp)), ContentScale.Crop)
+                    Text(if (signedIn?.canManageImages == true) "Visibile a tutti gli utenti. Ogni nuova foto che aggiungi diventa l'immagine predefinita." else "Visibile a tutti gli utenti · modificabile dagli admin e dagli utenti autorizzati.", color = c.textSecondary)
+                    if (signedIn?.canManageImages == true) TextButton(onClick = { confirmRemoveShared = true }) { Text("Rimuovi immagine condivisa", color = c.error) }
+                }
+            }
             SectionLabel("Avanzate")
             GymCard {
                 Row(
-                    Modifier.fillMaxWidth().clickable { vm.edit { it.copy(single = !it.single) } },
+                    Modifier.fillMaxWidth().clickable(enabled = canEditShared) { vm.edit { it.copy(single = !it.single) } },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -186,7 +208,7 @@ fun ExerciseEditScreen(
                         Text("Peso, reps e RIR separati per sinistra e destra", color = Gym.colors.textSecondary,
                             style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(checked = form.single, onCheckedChange = { v -> vm.edit { it.copy(single = v) } },
+                    Switch(checked = form.single, enabled = canEditShared, onCheckedChange = { v -> vm.edit { it.copy(single = v) } },
                         colors = SwitchDefaults.colors(checkedTrackColor = Gym.colors.accent, checkedThumbColor = Gym.colors.onAccent))
                 }
                 Spacer(Modifier.height(12.dp))
@@ -226,6 +248,18 @@ fun ExerciseEditScreen(
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Annulla") } },
         )
     }
+
+    if (confirmRemoveShared) ConfirmDialog(
+        title = "Rimuovere l'immagine condivisa?",
+        message = "Non sarà più visibile agli utenti. Le foto locali resteranno sul dispositivo.",
+        confirmLabel = "Rimuovi",
+        onConfirm = { confirmRemoveShared = false; vm.removeSharedImage() },
+        onDismiss = { confirmRemoveShared = false },
+    )
+    shareError?.let { error ->
+        AlertDialog(onDismissRequest = vm::dismissShareError, title = { Text("Foto non pubblicata") },
+            text = { Text(error) }, confirmButton = { TextButton(onClick = vm::dismissShareError) { Text("OK") } })
+    }
 }
 
 @Composable
@@ -242,18 +276,18 @@ private fun PhotoRow(path: String, canUp: Boolean, canDown: Boolean, onUp: () ->
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun <T> EnumDropdown(label: String, value: T, options: List<T>, text: (T) -> String, onSelect: (T) -> Unit) {
+fun <T> EnumDropdown(label: String, value: T, options: List<T>, text: (T) -> String, enabled: Boolean = true, onSelect: (T) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
+    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it && enabled }) {
         OutlinedTextField(
             value = text(value), onValueChange = {}, readOnly = true, label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            enabled = enabled, modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
             shape = RoundedCornerShape(14.dp),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { o ->
-                DropdownMenuItem(text = { Text(text(o)) }, onClick = { onSelect(o); open = false })
+                DropdownMenuItem(text = { Text(text(o)) }, enabled = enabled, onClick = { onSelect(o); open = false })
             }
         }
     }

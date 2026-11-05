@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -84,17 +86,21 @@ fun ExerciseCard(e: ExerciseWithDetails, onClick: () -> Unit) {
                 }, color = c.textSecondary)
             }
             if (e.exercise.needsReview) AccentPill("da completare")
-            else Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.textSecondary)
+            else if (e.exercise.remoteId == null && !e.exercise.archived) {
+                AccentPill(if (e.exercise.dirty) "da sincronizzare" else "solo locale", Icons.Rounded.CloudUpload)
+            } else Icon(Icons.Rounded.CloudDone, "Condiviso", tint = c.accent)
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = c.textSecondary)
         }
     }
 }
 
 @Composable
 fun ExerciseListScreen(onOpen: (Long) -> Unit, onOpenSettings: () -> Unit) {
-    val vm = appViewModel { ExerciseListViewModel(it.exercises) }
+    val vm = appViewModel { ExerciseListViewModel(it.exercises, it.auth) }
     val list by vm.exercises.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val muscle by vm.muscle.collectAsStateWithLifecycle()
+    val mine by vm.mine.collectAsStateWithLifecycle()
     val c = Gym.colors
 
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -104,6 +110,10 @@ fun ExerciseListScreen(onOpen: (Long) -> Unit, onOpenSettings: () -> Unit) {
             }
             SearchField(query, { vm.query.value = it }, Modifier.padding(horizontal = 16.dp))
             MuscleFilter(muscle) { vm.muscle.value = it }
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GymChip("Tutti", selected = !mine, onClick = { vm.mine.value = false })
+                GymChip("Miei", selected = mine, onClick = { vm.mine.value = true })
+            }
         }
         item {
             Box(Modifier.padding(horizontal = 16.dp)) {

@@ -31,6 +31,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.SubcomposeAsyncImage
 import java.io.File
+import it.gymlog.app.BuildConfig
+
+fun sharedImageUrl(key: String?): String? = key?.takeIf { BuildConfig.SUPABASE_URL.isNotBlank() }?.let {
+    "${BuildConfig.SUPABASE_URL.trimEnd('/')}/storage/v1/object/public/exercise-images/" +
+        it.split('/').joinToString("/") { segment -> android.net.Uri.encode(segment) }
+}
 
 /** Foto del macchinario a scorrimento; tap = schermo intero; file mancante = segnaposto. */
 @Composable
@@ -70,7 +76,7 @@ fun PhotoCarousel(paths: List<String>, modifier: Modifier = Modifier, height: In
 @Composable
 fun PhotoImage(path: String, modifier: Modifier, scale: ContentScale) {
     SubcomposeAsyncImage(
-        model = File(path),
+        model = if (path.startsWith("https://") || path.startsWith("http://")) path else File(path),
         contentDescription = "Foto del macchinario",
         contentScale = scale,
         modifier = modifier,

@@ -139,37 +139,74 @@ end
 $$;
 
 -- =============================================================================================
--- 3. Immagine: primo che arriva vince, solo l'admin sostituisce
+-- 3. Immagine condivisa: solo admin e utenti autorizzati
 -- =============================================================================================
 reset role;
 insert into storage.objects (bucket_id, name) values
-    ('exercise-images', '00000000-0000-0000-0000-000000000002/aaaaaaaa-0000-0000-0000-000000000001.jpg'),
-    ('exercise-images', '00000000-0000-0000-0000-000000000004/bbbbbbbb-0000-0000-0000-000000000002.jpg');
+    ('exercise-images', '00000000-0000-0000-0000-000000000001/aaaaaaaa-0000-0000-0000-000000000001.jpg'),
+    ('exercise-images', '00000000-0000-0000-0000-000000000002/bbbbbbbb-0000-0000-0000-000000000002.jpg');
 
 set local role authenticated;
+
+-- utente normale senza permesso: non può impostare l'immagine
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
-
-select public.t_ok(
-    public.set_exercise_image(
-        '11111111-1111-1111-1111-111111111111',
-        '00000000-0000-0000-0000-000000000002/aaaaaaaa-0000-0000-0000-000000000001.jpg'),
-    'il primo che carica imposta l''immagine');
-
--- il secondo arriva dopo: false, non eccezione
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
-select public.t_ok(
-    not public.set_exercise_image(
-        '11111111-1111-1111-1111-111111111111',
-        '00000000-0000-0000-0000-000000000004/bbbbbbbb-0000-0000-0000-000000000002.jpg'),
-    'il secondo non sostituisce l''immagine');
-
--- percorso di un altro utente: rifiutato
 do $$
 begin
     begin
         perform public.set_exercise_image(
             '11111111-1111-1111-1111-111111111111',
-            '00000000-0000-0000-0000-000000000002/aaaaaaaa-0000-0000-0000-000000000001.jpg');
+            '00000000-0000-0000-0000-000000000002/bbbbbbbb-0000-0000-0000-000000000002.jpg');
+        raise exception 'FAIL: un utente senza permesso ha impostato l''immagine';
+    exception when insufficient_privilege then
+        null;
+    end;
+end
+$$;
+
+-- solo l'admin assegna i permessi
+do $$
+begin
+    begin
+        perform public.set_exercise_image_editor('amico@example.com', true);
+        raise exception 'FAIL: un utente normale ha assegnato il permesso immagini';
+    exception when insufficient_privilege then
+        null;
+    end;
+end
+$$;
+
+-- l'admin assegna il permesso e imposta l'immagine
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+select public.set_exercise_image_editor('amico@example.com', true);
+select public.t_ok(
+    exists (select 1 from public.list_exercise_image_editors() e where e = 'amico@example.com'),
+    'l''admin vede l''utente autorizzato');
+select public.t_ok(
+    public.set_exercise_image(
+        '11111111-1111-1111-1111-111111111111',
+        '00000000-0000-0000-0000-000000000001/aaaaaaaa-0000-0000-0000-000000000001.jpg'),
+    'l''admin imposta l''immagine');
+
+-- l'editor autorizzato la sostituisce
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+select public.t_ok(public.can_manage_exercise_images(), 'l''utente autorizzato può gestire le immagini');
+select public.t_ok(
+    public.set_exercise_image(
+        '11111111-1111-1111-1111-111111111111',
+        '00000000-0000-0000-0000-000000000002/bbbbbbbb-0000-0000-0000-000000000002.jpg'),
+    'l''utente autorizzato sostituisce l''immagine');
+select public.t_ok(
+    (select image_path = '00000000-0000-0000-0000-000000000002/bbbbbbbb-0000-0000-0000-000000000002.jpg'
+     from public.exercises where id = '11111111-1111-1111-1111-111111111111'),
+    'la nuova immagine è quella condivisa');
+
+-- percorso di un altro utente: rifiutato anche con il permesso
+do $$
+begin
+    begin
+        perform public.set_exercise_image(
+            '11111111-1111-1111-1111-111111111111',
+            '00000000-0000-0000-0000-000000000001/aaaaaaaa-0000-0000-0000-000000000001.jpg');
         raise exception 'FAIL: accettato il percorso di un altro utente';
     exception when insufficient_privilege then
         null;
@@ -183,7 +220,7 @@ begin
     begin
         perform public.set_exercise_image(
             '11111111-1111-1111-1111-111111111111',
-            '00000000-0000-0000-0000-000000000004/cccccccc-0000-0000-0000-000000000003.jpg');
+            '00000000-0000-0000-0000-000000000002/cccccccc-0000-0000-0000-000000000003.jpg');
         raise exception 'FAIL: accettato un file inesistente';
     exception when invalid_parameter_value then
         null;
@@ -191,26 +228,54 @@ begin
 end
 $$;
 
--- utente normale non può rimuovere l'immagine
+-- l'editor non può assegnare permessi
 do $$
 begin
     begin
-        perform public.clear_exercise_image('11111111-1111-1111-1111-111111111111');
-        raise exception 'FAIL: un utente normale ha rimosso l''immagine';
+        perform public.set_exercise_image_editor('terzo@example.com', true);
+        raise exception 'FAIL: l''editor ha assegnato un permesso';
     exception when insufficient_privilege then
         null;
     end;
 end
 $$;
 
--- l'admin sostituisce e poi rimuove
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
-select public.t_ok(
-    public.set_exercise_image(
-        '11111111-1111-1111-1111-111111111111',
-        '00000000-0000-0000-0000-000000000004/bbbbbbbb-0000-0000-0000-000000000002.jpg'),
-    'l''admin sostituisce l''immagine');
+-- utente senza permesso non può rimuovere l'immagine
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000004', true);
+do $$
+begin
+    begin
+        perform public.clear_exercise_image('11111111-1111-1111-1111-111111111111');
+        raise exception 'FAIL: un utente senza permesso ha rimosso l''immagine';
+    exception when insufficient_privilege then
+        null;
+    end;
+end
+$$;
 
+-- revoca: l'editor perde il permesso
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+select public.set_exercise_image_editor('amico@example.com', false);
+select public.t_ok(
+    not exists (select 1 from public.list_exercise_image_editors() e where e = 'amico@example.com'),
+    'l''admin revoca il permesso immagini');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+do $$
+begin
+    begin
+        perform public.set_exercise_image(
+            '11111111-1111-1111-1111-111111111111',
+            '00000000-0000-0000-0000-000000000002/bbbbbbbb-0000-0000-0000-000000000002.jpg');
+        raise exception 'FAIL: il permesso revocato è ancora attivo';
+    exception when insufficient_privilege then
+        null;
+    end;
+end
+$$;
+
+-- l'admin rimuove
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
 select public.clear_exercise_image('11111111-1111-1111-1111-111111111111');
 select public.t_ok(
     (select image_path is null from public.exercises where id = '11111111-1111-1111-1111-111111111111'),

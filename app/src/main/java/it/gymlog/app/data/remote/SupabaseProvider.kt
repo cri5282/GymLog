@@ -8,6 +8,7 @@ import io.github.jan.supabase.auth.SettingsCodeVerifierCache
 import io.github.jan.supabase.auth.SettingsSessionManager
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
 import it.gymlog.app.BuildConfig
 
@@ -35,6 +36,7 @@ object SupabaseProvider {
                 codeVerifierCache = SettingsCodeVerifierCache(prefs)
             }
             install(Postgrest)
+            install(Realtime)
             install(Storage)
         }
     }

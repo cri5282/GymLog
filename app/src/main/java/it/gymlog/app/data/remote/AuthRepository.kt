@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
@@ -34,6 +36,8 @@ sealed interface AuthState {
         val name: String?,
         /** Deciso dal server (`is_admin()`), non dal client. */
         val isAdmin: Boolean,
+        /** Permesso server di pubblicare e sostituire le immagini condivise. */
+        val canManageImages: Boolean = isAdmin,
     ) : AuthState
 
     data class Error(val message: String) : AuthState
@@ -130,9 +134,30 @@ class AuthRepository(
             }
     }
 
+    suspend fun imageEditors(): List<String> = client!!.postgrest.rpc("list_exercise_image_editors").decodeList()
+
+    suspend fun setImageEditor(email: String, enabled: Boolean) {
+        client!!.postgrest.rpc("set_exercise_image_editor", buildJsonObject {
+            put("p_email", email.trim())
+            put("p_enabled", enabled)
+        })
+    }
+
+    suspend fun refreshImagePermission() {
+        val user = _state.value as? AuthState.SignedIn ?: return
+        if (user.isAdmin) return
+        val allowed = runCatching {
+            client!!.postgrest.rpc("can_manage_exercise_images").decodeAs<Boolean>()
+        }.getOrDefault(false)
+        _state.value = user.copy(canManageImages = allowed)
+    }
+
     private suspend fun signedIn(user: UserInfo) {
         val admin = runCatching {
             client!!.postgrest.rpc("is_admin").decodeAs<Boolean>()
+        }.getOrDefault(false)
+        val canManageImages = admin || runCatching {
+            client!!.postgrest.rpc("can_manage_exercise_images").decodeAs<Boolean>()
         }.getOrDefault(false)
         _state.value = AuthState.SignedIn(
             uid = user.id,
@@ -140,6 +165,7 @@ class AuthRepository(
             name = user.userMetadata?.get("full_name")?.jsonPrimitive?.contentOrNull
                 ?: user.userMetadata?.get("name")?.jsonPrimitive?.contentOrNull,
             isAdmin = admin,
+            canManageImages = canManageImages,
         )
     }
 }

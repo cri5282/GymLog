@@ -13,6 +13,10 @@ import it.gymlog.app.data.repo.DuplicateNameException
 import it.gymlog.app.data.repo.ExerciseDraft
 import it.gymlog.app.data.repo.ExerciseRepository
 import it.gymlog.app.data.repo.PhotoStore
+import it.gymlog.app.data.remote.AuthRepository
+import it.gymlog.app.data.db.ExerciseWithDetails
+import it.gymlog.app.data.sync.SharedImageProcessor
+import it.gymlog.app.data.sync.CatalogSyncRunner
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +48,8 @@ class ExerciseEditViewModel(
     initialId: Long,
     private val repo: ExerciseRepository,
     private val photoStore: PhotoStore,
+    private val auth: AuthRepository,
+    private val catalogSync: CatalogSyncRunner?,
 ) : ViewModel() {
     /** 0 finché l'esercizio nuovo non viene salvato la prima volta. */
     private val _id = MutableStateFlow(initialId)
@@ -55,6 +61,12 @@ class ExerciseEditViewModel(
     val photos: StateFlow<List<ExercisePhoto>> =
         (if (initialId == 0L) flowOf(emptyList()) else repo.observe(initialId).map { it?.sortedPhotos.orEmpty() })
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val details: StateFlow<ExerciseWithDetails?> =
+        (if (initialId == 0L) flowOf(null) else repo.observe(initialId))
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val authState = auth.state
+    private val _shareError = MutableStateFlow<String?>(null)
+    val shareError = _shareError.asStateFlow()
 
     private val _newPhotos = MutableStateFlow<List<File>>(emptyList())
     /** Foto scattate prima del primo salvataggio di un esercizio nuovo. */
@@ -93,12 +105,35 @@ class ExerciseEditViewModel(
     private fun addPhotoFile(file: File) {
         val current = _id.value
         if (current == 0L) _newPhotos.update { it + file }
-        else viewModelScope.launch { repo.addPhoto(current, file) }
+        else viewModelScope.launch { savePhoto(current, file) }
+    }
+
+    private suspend fun savePhoto(exerciseId: Long, source: File) {
+        repo.addPhoto(exerciseId, source)
+        if ((auth.state.value as? it.gymlog.app.data.remote.AuthState.SignedIn)?.canManageImages != true) return
+        val output = source.parentFile ?: return
+        _shareError.value = null
+        runCatching {
+            val ready = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                SharedImageProcessor.process(source, output)
+            }
+            repo.queueSharedImage(exerciseId, ready)
+        }.onFailure { _shareError.value = "Foto salvata sul telefono, ma non pubblicata. Riprova ad aggiungerla." }
     }
 
     fun removePhoto(p: ExercisePhoto) = viewModelScope.launch { repo.removePhoto(p) }
     fun movePhoto(p: ExercisePhoto, up: Boolean) = viewModelScope.launch { repo.movePhoto(p, up) }
     fun removePending(f: File) { f.delete(); _newPhotos.update { it - f } }
+
+    fun dismissShareError() { _shareError.value = null }
+
+    fun removeSharedImage() = viewModelScope.launch {
+        val e = details.value?.exercise ?: return@launch
+        val id = e.remoteId ?: return@launch
+        if (catalogSync?.clearSharedImage(e.id, id) != true) {
+            _shareError.value = "Rimozione non riuscita. Controlla la connessione e i permessi admin."
+        }
+    }
 
     /** Salva e chiama [onDone] se va a buon fine. */
     fun save(onDone: () -> Unit) = viewModelScope.launch {
@@ -113,7 +148,7 @@ class ExerciseEditViewModel(
                     single = f.single,
                 )
             )
-            _newPhotos.value.forEach { repo.addPhoto(saved, it) }
+            _newPhotos.value.forEach { savePhoto(saved, it) }
             _newPhotos.value = emptyList()
             _id.value = saved
             onDone()

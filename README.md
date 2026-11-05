@@ -8,7 +8,7 @@ L'app unisce in un unico posto scheda, diario degli allenamenti, timer di recupe
 misurazioni corporee e backup. Non richiede un account: senza connessione funziona interamente
 offline. Chi vuole può accedere con Google per condividere il catalogo degli esercizi.
 
-**Versione:** 1.5.2 (`versionCode` 10) · **Android:** 8.0+ (API 26) · **Lingua:** italiano · **Dati:** locali, condivisione facoltativa del catalogo
+**Versione:** 1.6.0 (`versionCode` 11) · **Android:** 8.0+ (API 26) · **Lingua:** italiano · **Dati:** locali, condivisione facoltativa del catalogo
 
 ---
 
@@ -381,9 +381,12 @@ L'importazione è ripetibile: non duplica gli allenamenti già importati.
 - Allenamenti, schede, note, foto e misure sono salvati nel database Room, nei file privati
   dell'app e in DataStore; non vengono inviati a server.
 - Non ci sono analytics, pubblicità o tracciamento.
-- L'account è facoltativo. Accedendo con Google vengono inviati a Supabase solo gli esercizi del
-  catalogo condiviso (nome, muscolo, note e immagine) e l'identificativo dell'account. La sessione
+- L'account è facoltativo. Dopo un consenso esplicito vengono inviati a Supabase solo gli esercizi
+  del catalogo condiviso (nome, muscoli, tipo e immagine condivisa) e l'identificativo dell'account.
+  Le note, il passo di carico, il nome Hevy e le foto personali restano sul telefono. La sessione
   resta sul telefono ed è esclusa dai backup.
+- Solo l'admin e gli account da lui autorizzati possono pubblicare o sostituire l'immagine condivisa
+  di un esercizio.
 - Il permesso `INTERNET` serve solo a questa funzione: senza account l'app funziona offline come
   prima.
 - Il backup ZIP è creato solo su richiesta dell'utente e nella destinazione scelta.
@@ -433,9 +436,9 @@ backend/test.sh
 ```
 
 `scripts/build-apk.sh` esegue `clean`, i test e `assembleRelease`, verifica la firma e copia il file
-in `dist/GymLog-<versione>.apk`. La suite attuale conta **206 test JVM**.
+in `dist/GymLog-<versione>.apk`. La suite attuale conta **212 test JVM**.
 
-L'APK pronto per l'installazione è `dist/GymLog-1.5.2.apk`. Per installarlo e aggiornarlo sul
+L'APK pronto per l'installazione è `dist/GymLog-1.6.0.apk`. Per installarlo e aggiornarlo sul
 telefono segui [INSTALLA.md](INSTALLA.md).
 
 ### Firma
@@ -497,7 +500,7 @@ GymLog/
 
 ## Documentazione collegata
 
-- [INSTALLA.md](INSTALLA.md) – installazione, aggiornamenti, backup e checklist della versione 1.5.2.
+- [INSTALLA.md](INSTALLA.md) – installazione, aggiornamenti, backup e checklist della versione 1.6.0.
 - [docs/superpowers/plans/2026-11-04-stato-lavoro.md](docs/superpowers/plans/2026-11-04-stato-lavoro.md)
   – stato del catalogo condiviso: fatto, parziale e prossimi passi.
 - [docs/superpowers/specs](docs/superpowers/specs) – specifiche di design del progetto.

@@ -60,6 +60,12 @@ interface ExerciseDao {
     @Query("UPDATE Exercise SET pendingImageFile = NULL WHERE id = :id")
     suspend fun clearPendingImage(id: Long)
 
+    @Query("UPDATE Exercise SET pendingImageFile = :path WHERE id = :id")
+    suspend fun queueSharedImage(id: Long, path: String)
+
+    @Query("UPDATE Exercise SET sharedImageKey = NULL WHERE id = :id")
+    suspend fun clearSharedImage(id: Long)
+
     @Insert suspend fun insert(e: Exercise): Long
     @Update suspend fun update(e: Exercise)
     @Delete suspend fun delete(e: Exercise)

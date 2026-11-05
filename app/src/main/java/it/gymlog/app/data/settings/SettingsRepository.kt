@@ -58,6 +58,8 @@ data class Settings(
     val backupTreeUri: String? = null,
     val lastBackupAt: Long = 0,
     val appIcon: AppIcon = AppIcon.CLASSIC,
+    /** UID che ha acconsentito a condividere il catalogo: il consenso vale per account, non per telefono. */
+    val catalogConsentFor: String? = null,
 )
 
 class SettingsRepository(private val dataStore: DataStore<Preferences>) {
@@ -79,6 +81,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val backupTree = stringPreferencesKey("backup_tree_uri")
         val lastBackup = longPreferencesKey("last_backup_at")
         val appIcon = stringPreferencesKey("app_icon")
+        val catalogConsent = stringPreferencesKey("catalog_consent_for")
     }
 
     private inline fun <reified E : Enum<E>> Preferences.enumOr(key: Preferences.Key<String>, default: E): E =
@@ -104,6 +107,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             backupTreeUri = p[Keys.backupTree]?.takeIf { it.isNotBlank() },
             lastBackupAt = p[Keys.lastBackup] ?: 0,
             appIcon = p.enumOr(Keys.appIcon, d.appIcon),
+            catalogConsentFor = p[Keys.catalogConsent]?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -131,6 +135,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             p[Keys.backupTree] = next.backupTreeUri.orEmpty()
             p[Keys.lastBackup] = next.lastBackupAt
             p[Keys.appIcon] = next.appIcon.name
+            p[Keys.catalogConsent] = next.catalogConsentFor.orEmpty()
         }
     }
 }

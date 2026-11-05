@@ -169,6 +169,41 @@ class CatalogSyncTest {
         assertFalse(db.exerciseDao().getWithDetails(exercise.id)!!.exercise.dirty)
     }
 
+    @Test fun pushUpdates_refusedWhenServerDoesNotApplyTheChange() = runTest {
+        val exercise = local("Panca piana", remoteId = "r-1", createdBy = me)
+        db.exerciseDao().update(db.exerciseDao().getWithDetails(exercise.id)!!.exercise.copy(name = "Nuovo nome", dirty = true))
+        val remote = FakeRemote(acceptUpdate = false)
+        remote.rows["r-1"] = RemoteExercise(id = "r-1", name = "Panca piana", primaryMuscle = "PETTO", createdBy = me)
+
+        val report = sync(remote).syncOnce()
+
+        assertEquals(1, report.refused)
+        assertFalse(db.exerciseDao().getWithDetails(exercise.id)!!.exercise.dirty)
+        assertEquals("Panca piana", remote.rows.getValue("r-1").name)
+    }
+
+    @Test fun pushImages_authorizedNonAdminReplacesExistingImage() = runTest {
+        val file = folder.newFile("img.jpg")
+        val exercise = local("Panca piana", remoteId = "r-1", createdBy = me)
+        db.exerciseDao().update(
+            db.exerciseDao().getWithDetails(exercise.id)!!.exercise.copy(
+                sharedImageKey = "altro/vecchia.jpg",
+                pendingImageFile = file.path,
+            )
+        )
+        val remote = FakeRemote()
+        remote.rows["r-1"] = RemoteExercise(
+            id = "r-1", name = "Panca piana", primaryMuscle = "PETTO",
+            imagePath = "altro/vecchia.jpg", createdBy = me,
+        )
+
+        val report = CatalogSync(db, remote, me, isAdmin = false, canManageImages = true).syncOnce()
+
+        assertEquals(1, report.pushedImages)
+        assertEquals("img/path.jpg", remote.rows.getValue("r-1").imagePath)
+        assertEquals(1, remote.uploads)
+    }
+
     @Test fun pushImages_setsSharedImageWhenNobodyWasFirst() = runTest {
         val file = folder.newFile("img.jpg")
         val exercise = local("Panca piana", remoteId = "r-1", createdBy = me)
@@ -178,7 +213,7 @@ class CatalogSyncTest {
         val remote = FakeRemote()
         remote.rows["r-1"] = RemoteExercise(id = "r-1", name = "Panca piana", primaryMuscle = "PETTO", createdBy = me)
 
-        val report = CatalogSync(db, remote, me, isAdmin = false).syncOnce()
+        val report = CatalogSync(db, remote, me, isAdmin = false, canManageImages = true).syncOnce()
 
         assertEquals(1, report.pushedImages)
         assertEquals("img/path.jpg", remote.rows.getValue("r-1").imagePath)
@@ -195,7 +230,7 @@ class CatalogSyncTest {
         )
         val remote = FakeRemote(acceptImage = false)
 
-        val report = sync(remote).syncOnce()
+        val report = CatalogSync(db, remote, me, isAdmin = false, canManageImages = true).syncOnce()
 
         assertEquals(1, report.imagesLost)
         val saved = db.exerciseDao().getWithDetails(exercise.id)!!.exercise
@@ -225,7 +260,10 @@ class CatalogSyncTest {
         assertNull(db.exerciseDao().getWithDetails(exercise.id)!!.exercise.pendingImageFile)
     }
 
-    private class FakeRemote(private val acceptImage: Boolean = true) : CatalogRemote {
+    private class FakeRemote(
+        private val acceptImage: Boolean = true,
+        private val acceptUpdate: Boolean = true,
+    ) : CatalogRemote {
         val rows = linkedMapOf<String, RemoteExercise>()
         var uploads = 0
 
@@ -239,10 +277,12 @@ class CatalogSyncTest {
             return InsertResult.Inserted
         }
 
-        override suspend fun update(exercise: RemoteExercise) {
+        override suspend fun update(exercise: RemoteExercise): Boolean {
+            if (!acceptUpdate) return false
             val old = rows.getValue(exercise.id)
             // Il server non lascia toccare image_path da un update dei metadati.
             rows[exercise.id] = exercise.copy(imagePath = old.imagePath, deleted = old.deleted)
+            return true
         }
 
         override suspend fun uploadImage(file: File, remoteId: String): String {

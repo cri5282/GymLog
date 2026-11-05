@@ -25,7 +25,7 @@ import it.gymlog.app.ui.design.GymType
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExercisePickerDialog(title: String, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
-    val vm = appViewModel(key = "picker") { ExerciseListViewModel(it.exercises) }
+    val vm = appViewModel(key = "picker") { ExerciseListViewModel(it.exercises, it.auth) }
     val list by vm.exercises.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val muscle by vm.muscle.collectAsStateWithLifecycle()

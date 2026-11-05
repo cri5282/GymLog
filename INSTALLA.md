@@ -2,7 +2,7 @@
 
 ## 1. Copiare l'APK sul telefono
 
-Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.5.2.apk`. Scegli uno di questi modi:
+Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.6.0.apk`. Scegli uno di questi modi:
 
 - **Cavo USB:** collega il telefono, sul telefono scegli "Trasferimento file", copia l'APK nella cartella *Download*.
 - **Google Drive:** carica l'APK su Drive dal PC e scaricalo dal telefono con l'app Drive.
@@ -35,6 +35,30 @@ Il file da installare è `~/Progetti/GymLog/dist/GymLog-1.5.2.apk`. Scegli uno d
   database, foto e impostazioni.
 - Da **Impostazioni → Backup** puoi esportare tutto in uno zip e ripristinarlo in seguito.
   È disponibile anche il backup automatico settimanale in una cartella scelta.
+
+## Aggiornare alla 1.6.0 (immagini condivise automatiche)
+
+Prima di installare l'APK, applica al progetto Supabase le migrazioni non ancora presenti:
+`backend/supabase/migrations/20261104130000_tombstones.sql` e
+`backend/supabase/migrations/20261104140000_image_editors_realtime.sql`.
+Puoi usare `supabase db push` se il progetto è già collegato, oppure eseguirle dal SQL Editor di
+Supabase (una volta sola ciascuna). Installa poi `GymLog-1.6.0.apk` sopra la versione precedente.
+
+Checklist:
+- [ ] Al primo accesso compare la richiesta di consenso: nessun esercizio viene inviato prima di
+      **Condividi**.
+- [ ] Dopo il consenso l'esito mostra la sincronizzazione iniziale e la libreria non ha duplicati.
+- [ ] L'admin e gli account autorizzati possono aggiungere/sostituire l'immagine predefinita di un esercizio.
+- [ ] Se un altro dispositivo modifica il catalogo, l'app si aggiorna da sola (Realtime).
+- [ ] Un utente normale può aggiungere foto personali, ma non pubblicarle né modificare i campi
+      condivisi di un esercizio altrui.
+
+Come funziona:
+- Per autorizzare un account: **Impostazioni → Account → Permessi immagini**, inserisci la sua email
+  Google GymLog e tocca **Autorizza**. La revoca è disponibile accanto all'email.
+- Da quel momento la nuova foto aggiunta diventa automaticamente quella condivisa; le altre foto
+  personali già presenti sul telefono non vengono caricate retroattivamente.
+- **Sincronizza ora** resta disponibile come comando manuale.
 
 ## Aggiornare alla 1.5.2 (prima sincronizzazione reale)
 

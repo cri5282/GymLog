@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import it.gymlog.app.data.db.ExerciseWithDetails
 import it.gymlog.app.data.db.Muscle
 import it.gymlog.app.data.repo.ExerciseRepository
+import it.gymlog.app.data.remote.AuthRepository
+import it.gymlog.app.data.remote.AuthState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,12 +16,21 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ExerciseListViewModel(repo: ExerciseRepository) : ViewModel() {
+class ExerciseListViewModel(repo: ExerciseRepository, auth: AuthRepository) : ViewModel() {
     val query = MutableStateFlow("")
     val muscle = MutableStateFlow<Muscle?>(null)
+    val mine = MutableStateFlow(false)
+    private val uid = auth.state
 
     val exercises: StateFlow<List<ExerciseWithDetails>> =
-        combine(query, muscle) { q, m -> q to m }
-            .flatMapLatest { (q, m) -> repo.observeLibrary(q, m) }
+        combine(query, muscle, mine) { q, m, own -> Triple(q, m, own) }
+            .flatMapLatest { (q, m, own) ->
+                combine(repo.observeLibrary(q, m), uid) { list, user ->
+                    if (!own) list else {
+                        val id = (user as? AuthState.SignedIn)?.uid
+                        list.filter { it.exercise.remoteId == null || it.exercise.remoteCreatedBy == id }
+                    }
+                }
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }

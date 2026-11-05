@@ -8,6 +8,8 @@ import it.gymlog.app.data.remote.CatalogRemote
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +27,7 @@ sealed interface SyncStatus {
         val sent: Int,
         val archived: Int,
         val refused: Int,
+        val imagesLost: Int,
         val at: Long,
     ) : SyncStatus
     data class Failed(val message: String) : SyncStatus
@@ -41,6 +44,7 @@ class CatalogSyncRunner(
     private val remote: CatalogRemote,
     private val auth: AuthRepository,
     private val scope: CoroutineScope,
+    private val hasConsent: suspend (String) -> Boolean = { true },
 ) {
     private val mutex = Mutex()
     private var debounce: Job? = null
@@ -48,7 +52,12 @@ class CatalogSyncRunner(
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
 
     fun start() = scope.launch {
-        auth.state.collect { state -> if (state is AuthState.SignedIn) syncNow() }
+        auth.state.collectLatest { state ->
+            if (state is AuthState.SignedIn) {
+                syncNow()
+                remote.changes().retryWhen { _, _ -> delay(5_000); true }.collect { requestSync() }
+            }
+        }
     }
 
     /** Da chiamare dopo un salvataggio: più modifiche ravvicinate diventano un solo scambio. */
@@ -63,10 +72,11 @@ class CatalogSyncRunner(
     suspend fun syncNow() {
         // Se l'account è cambiato durante l'attesa, vince lo stato corrente.
         val user = auth.state.value as? AuthState.SignedIn ?: return
+        if (!hasConsent(user.uid)) return
         _status.value = SyncStatus.Running
         mutex.withLock {
             runCatching {
-                CatalogSync(db, remote, user.uid, user.isAdmin).syncOnce()
+                CatalogSync(db, remote, user.uid, user.isAdmin, user.canManageImages).syncOnce()
             }.onSuccess { report ->
                 _status.value = SyncStatus.Done(
                     added = report.added,
@@ -74,12 +84,27 @@ class CatalogSyncRunner(
                     sent = report.pushedNew + report.pushedUpdates,
                     archived = report.archived,
                     refused = report.refused,
+                    imagesLost = report.imagesLost,
                     at = System.currentTimeMillis(),
                 )
             }.onFailure {
-                Log.w("GymLog", "Sincronizzazione del catalogo non riuscita", it)
-                _status.value = SyncStatus.Failed(it.message ?: "errore di rete")
+                // Le eccezioni HTTP possono includere l'header Authorization: non mostrarlo né registrarlo.
+                Log.w("GymLog", "Sincronizzazione catalogo non riuscita (${it::class.simpleName})")
+                _status.value = SyncStatus.Failed("Errore di sincronizzazione. Riprova più tardi.")
             }
         }
+    }
+
+    suspend fun clearSharedImage(localId: Long, remoteId: String): Boolean {
+        val user = auth.state.value as? AuthState.SignedIn ?: return false
+        if (!user.canManageImages) return false
+        return runCatching {
+            mutex.withLock {
+                remote.clearImage(remoteId)
+                db.exerciseDao().clearSharedImage(localId)
+            }
+            requestSync()
+            true
+        }.getOrDefault(false)
     }
 }

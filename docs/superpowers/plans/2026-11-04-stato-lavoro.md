@@ -1,142 +1,137 @@
-# GymLog – stato del lavoro al 4 novembre 2026
+# GymLog – stato del lavoro al 5 novembre 2026
 
-Documento di passaggio: cosa è pronto, cosa è parziale, cosa manca. Da leggere insieme a
-`docs/superpowers/plans/2026-11-04-gymlog-catalogo-condiviso.md` (piano approvato).
+Documento di passaggio per la versione **1.6.0** (`versionCode` 11): catalogo esercizi condiviso
+con account Google facoltativo, immagini condivise e aggiornamento in tempo reale.
+Piano di riferimento: `docs/superpowers/plans/2026-11-04-gymlog-catalogo-condiviso.md`.
 
-## Obiettivo
+## Obiettivo e vincoli
 
-GymLog 1.6.0: catalogo esercizi condiviso tra utenti, con account Google **facoltativo**.
-Offline-first: senza account l'app resta identica alla 1.5.0. Un solo account amministratore
-(`nicolosimonini3@gmail.com`), derivato dalla tabella `public.admin_emails` e dall'email
-confermata in `auth.users`.
-
-Vincoli: interfaccia e documentazione in italiano, nessuna telemetria, APK installabile sopra la
-versione precedente senza perdere dati, immagini condivise modificabili solo dall'admin.
+- Offline-first: senza account l'app funziona come la 1.5.0; i dati personali restano sul telefono.
+- Catalogo esercizi visibile a tutti gli utenti autenticati.
+- Immagine condivisa: una per esercizio, caricabile/sostituibile solo da admin e account autorizzati.
+- Admin derivato dal server (`public.admin_emails` + email confermata in `auth.users`), mai dal client.
+- Interfaccia e documentazione in italiano, nessuna telemetria.
+- APK installabile sopra la versione precedente senza perdere dati.
 
 ## Fatto e verificato
 
 ### Backend Supabase
 
-- Progetto: `https://kbjiitwqmufppnqbdyzm.supabase.co` (regione UE).
-- Chiavi pubbliche in `local.properties` (non versionato): `SUPABASE_URL`, `SUPABASE_ANON_KEY`
-  (formato nuovo `sb_publishable_...`), `GOOGLE_WEB_CLIENT_ID`.
-- Migrazione `backend/supabase/migrations/20261104120000_catalog.sql`: enum `muscle` e
-  `length_bias`, tabella `admin_emails`, tabella `exercises`, RLS, grant per colonna,
-  `is_admin()`, `set_exercise_image()`, `clear_exercise_image()`, `admin_delete_exercise()`,
-  `delete_my_account()`, bucket `exercise-images`.
-- Migrazione `20261104130000_tombstones.sql` (**da applicare al progetto reale**): rende visibili
-  le righe cancellate agli utenti autenticati, così il client può archiviarle.
-- Verifica locale: `backend/test.sh` crea Postgres 16 in Docker, applica le due migrazioni ed
+- Progetto `https://kbjiitwqmufppnqbdyzm.supabase.co` (regione UE). Chiavi pubbliche in
+  `local.properties` (non versionato): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GOOGLE_WEB_CLIENT_ID`.
+- `20261104120000_catalog.sql`: schema, enum, tabella `exercises`, RLS, grant per colonna,
+  `is_admin()`, funzioni immagine, soft delete, eliminazione account, bucket `exercise-images`.
+- `20261104130000_tombstones.sql`: i tombstone sono leggibili anche dagli utenti normali, così il
+  client archivia l'esercizio cancellato. **Da applicare al progetto reale.**
+- `20261104140000_image_editors_realtime.sql`: tabella `exercise_image_editors`, funzioni
+  `can_manage_exercise_images()`, `set_exercise_image_editor()`, `list_exercise_image_editors()`,
+  nuove regole per immagine e Storage, pubblicazione Realtime di `exercises`.
+  **Da applicare al progetto reale.**
+- Verifica locale: `backend/test.sh` crea Postgres 16 in Docker, applica le tre migrazioni ed
   esegue `backend/supabase/tests/10_catalog.sql`. Tutto verde.
-- Impostazioni Auth verificate via REST: `google: true`, `email: false`, `anonymous: false`.
 
-### Android – dati e sincronizzazione
+### Android – catalogo e sincronizzazione
 
-- Room versione 4, `MIGRATION_3_4` con soli `ADD COLUMN`; test 3→4 e catena 1→4. Provata sul
-  backup reale `~/Backup-GymLog/gymlog-backup-2026-10-20.zip` (33 esercizi, 27 serie, 3 sessioni).
-- Colonne nuove di `Exercise`: `remoteId`, `remoteCreatedBy`, `dirty`, `sharedImageKey`,
-  `pendingImageFile`.
-- `data/remote/CatalogRemote.kt`: contratto DTO/remote.
-- `data/remote/SupabaseCatalogRemote.kt`: implementazione reale (select, insert con gestione nome
-  duplicato `23505`, update per colonna, upload su Storage, RPC immagine/cancellazione).
-- `data/sync/CatalogSync.kt`: push nuovi, push modifiche, push immagini, pull completo;
-  merge che non tocca i campi personali. 10 test con fake remote.
-- `data/sync/CatalogSyncRunner.kt`: sincronizza al login, all'avvio e 5 s dopo un salvataggio;
-  espone `SyncStatus` (Idle/Running/Done/Failed) e `syncNow()`.
-- `ExerciseRepository.save` ora conserva `remoteId`, `remoteCreatedBy`, `sharedImageKey`,
-  `pendingImageFile` e marca `dirty` solo per gli esercizi già condivisi. Test dedicato.
+- Room versione 4, `MIGRATION_3_4` con soli `ADD COLUMN`; verificata sul backup reale.
+- `data/remote/SupabaseCatalogRemote.kt`: select, insert con gestione del nome duplicato, update
+  che restituisce `false` se RLS non applica la modifica, upload su Storage, RPC immagine.
+- `data/sync/CatalogSync.kt`: push nuovi/modifiche/immagini, pull a snapshot completo, merge che non
+  tocca i campi personali, archiviazione dei tombstone, conteggio delle modifiche rifiutate.
+- `data/sync/CatalogSyncRunner.kt`: sync al login, all'avvio e 5 s dopo un salvataggio; Realtime
+  richiede un nuovo scambio quando un altro dispositivo modifica il catalogo; `SyncStatus` con
+  esito, modifiche rifiutate e immagini non pubblicate.
+- Consenso esplicito **per account**: finché non viene dato, nessun esercizio lascia il telefono.
+  L'UID che ha acconsentito è salvato in `Settings.catalogConsentFor`; un altro account sullo
+  stesso telefono deve acconsentire di nuovo.
+- `ExerciseRepository.save` conserva `remoteId`, `remoteCreatedBy`, `sharedImageKey` e
+  `pendingImageFile`; marca `dirty` solo se cambia un campo condiviso (una nota personale non
+  genera invii né falsi avvisi di conflitto).
 
-### Android – account
+### Android – immagini condivise
 
-- `data/remote/AuthRepository.kt`: login Google con Credential Manager + `signInWith(IDToken)`,
-  nonce SHA-256, stato (`Unavailable`, `SignedOut`, `Loading`, `SignedIn`, `Error`), admin letto
-  dal server con RPC `is_admin()`, logout anche offline, eliminazione account.
-- Sessione in SharedPreferences `gymlog-auth`, esclusa da backup cloud, device transfer e backup
-  ZIP (`res/xml/data_extraction_rules.xml`, `backup_rules.xml`).
-- `ui/settings/SettingsScreen.kt`: sezione "Account e catalogo condiviso" con login, nome/email,
-  badge Admin, esito ultima sincronizzazione, "Sincronizza ora", Esci, Elimina account.
-- `ui/common/Activity.kt`: risalita dal Context all'Activity per Credential Manager.
+- `data/sync/SharedImageProcessor.kt`: ridimensiona a 1024 px sul lato lungo, corregge l'orientamento
+  EXIF, salva JPEG senza metadati e resta sotto il limite di 1 MB del bucket.
+- Nuova foto di un utente autorizzato: viene salvata anche sul telefono e diventa automaticamente
+  l'immagine condivisa alla sincronizzazione successiva.
+- `PhotoCarousel` e le miniature mostrano prima l'immagine remota (Coil, URL pubblico), poi le foto
+  locali.
+- Admin: autorizza/revoca gli editor da *Impostazioni → Account → Permessi immagini*; può rimuovere
+  l'immagine condivisa dalla schermata di modifica dell'esercizio.
+- Utente normale: le foto restano locali e non vengono pubblicate.
 
-### Build e versioni
+### Android – interfaccia catalogo
 
-- 1.5.0 (`versionCode 8`): rilasciata, commit `96418bd`.
-- 1.5.1 (`versionCode 9`): build di prova del solo login, installata sul telefono e funzionante.
-- 1.5.2 (`versionCode 10`): build con la prima sincronizzazione reale, in corso di creazione.
-- Ultimo commit di codice: `4e1fd5b` (il commit con versione e documenti viene dopo la build).
-- Test: **206 test JVM verdi**; `scripts/test.sh`.
-- Backend: `backend/test.sh`.
+- Badge sull'elenco esercizi: condiviso, solo locale o da sincronizzare.
+- Filtro **Tutti / Miei**.
+- Campi condivisi (nome, muscoli, tipo, unilaterale) disabilitati con spiegazione per chi non è
+  creatore né admin; note e dati personali restano modificabili.
+- `domain/ExercisePermissions.kt` con test puri.
+
+### Account
+
+- Login Google con Credential Manager, stato `Unavailable/SignedOut/Loading/SignedIn/Error`, admin
+  letto dal server, logout anche offline, eliminazione account.
+- Sessione in `gymlog-auth`, esclusa da backup cloud, trasferimento dispositivo e backup ZIP.
+- Sezione account con esito ultima sync, **Sincronizza ora**, consenso al primo accesso.
+
+### Test e build
+
+- `scripts/test.sh`: test JVM (repository, sync con fake remote, permessi, elaborazione immagini,
+  migrazioni Room).
+- `backend/test.sh`: migrazioni e regole SQL su Postgres usa-e-getta.
+- `scripts/build-apk.sh`: `clean` + test + `assembleRelease` firmato in
+  `dist/GymLog-<versione>.apk`.
+- Versione corrente: **1.6.0**, `versionCode 11` (l'APK va rigenerato dopo le ultime modifiche).
 
 ## Fatto solo in parte
 
 | Area | Stato | Cosa manca |
 | --- | --- | --- |
-| Sincronizzazione | Funziona al login, all'avvio e dopo un salvataggio, solo con app aperta. | Nessun `WorkManager`: niente sync periodico a app chiusa, niente retry automatico con backoff. Se la rete manca, si riprova al prossimo avvio/modifica. |
-| Conflitti | Vince il server: la modifica locale viene scartata senza avviso (RLS aggiorna 0 righe). | Mostrare snackbar "modifica non applicata". Manca il confronto su `updated_at`. |
-| Immagini | Remote e `CatalogSync` sanno caricare/impostare/rimuovere; DB ha `sharedImageKey` e `pendingImageFile`. | Nessuna UI per scegliere la foto condivisa; nessun `SharedImageProcessor` (ridimensionamento 1024 px, EXIF, JPEG 80); nessuna visualizzazione remota con Coil. |
-| Login | Funziona su dispositivo. | Manca la schermata di conferma al primo accesso ("condividerai N esercizi"). Oggi il consenso è implicito nel testo della sezione account. |
-| Catalogo in UI | Esercizi condivisi già visibili, ma senza distinzioni. | Icona ☁, pill "da sincronizzare", filtro Tutti/Miei, campi condivisi bloccati per chi non può modificarli, banner iniziale. |
-| Amministrazione | Backend e badge pronti. | UI per sostituire/rimuovere l'immagine condivisa e per eliminare un esercizio. |
-| Test | 206 JVM + backend SQL. | Nessun test del remote reale né di `CatalogSyncRunner`. Nessun test su dispositivo della sincronizzazione. |
+| Sincronizzazione | Login, avvio, salvataggio e Realtime con app aperta. | Nessun `WorkManager`: a app chiusa non c'è sync periodica né retry con backoff. Alla riapertura si riallinea. `shortcut` documentato in `CatalogSyncRunner`. |
+| Conflitti | Il server rifiuta la modifica e il client la conta in `refused`. | L'avviso è nel riepilogo della sync, non come messaggio immediato sulla schermata dell'esercizio. |
+| Catalogo in UI | Badge, filtro Tutti/Miei, campi bloccati. | Nessun banner informativo la prima volta che appare un esercizio condiviso; nessun prefetch delle immagini della scheda attiva. |
+| Amministrazione | Permessi immagini e rimozione immagine. | Nessuna UI per eliminare un esercizio condiviso (la funzione `admin_delete_exercise` esiste ed è testata). |
+| Test su dispositivo | Build e suite automatiche verdi. | La 1.6.0 non è ancora stata provata sul telefono: login, sync reale, Realtime, immagine condivisa e aggiornamento sopra la 1.5.x. |
 
 ## Cosa manca, in ordine
 
-1. **Applicare `20261104130000_tombstones.sql`** al progetto Supabase (dashboard → SQL Editor).
-   Senza, la cancellazione di un esercizio non arriva agli utenti normali.
-2. **Provare la 1.5.2 sul telefono**: login già attivo, all'avvio deve comparire "Sincronizzato
-   alle HH:mm: 31 inviati, 0 nuovi" (circa 31 esercizi del seed). Verificare che la libreria non
-   abbia duplicati.
-3. **Primo consenso**: schermata/riepilogo prima di caricare il catalogo, con numero di esercizi;
-   escludere `needsReview` e `archived` (già esclusi dalla query `localOnly`).
-4. **WorkManager**: `SyncWorker` + `SyncScheduler` (vincolo rete, backoff, periodico 12 h,
-   `KEEP`), più "Sincronizza ora" collegato allo stesso percorso.
-5. **Immagini condivise**:
-   - `SharedImageProcessor` (decodifica con `inSampleSize`, rotazione EXIF, lato lungo ≤ 1024 px,
-     JPEG q80, nessun metadato);
-   - checkbox al salvataggio del nuovo esercizio e pulsante "Usa come immagine condivisa" su una
-     foto locale se `sharedImageKey == null`;
-   - admin: "Sostituisci" e "Rimuovi"; utente normale: badge 🔒;
-   - `PhotoCarousel` mostra prima l'immagine remota (URL pubblico + Coil, cache disco), poi le
-     foto locali; prefetch per gli esercizi della scheda attiva;
-   - errore "qualcuno è arrivato prima" già gestito da `CatalogSync` con `imagesLost`.
-6. **UI catalogo**: icona ☁, filtro Tutti/Miei, pill "da sincronizzare", campi condivisi
-   disabilitati con spiegazione quando `!canEditShared`. Aggiungere `domain/ExercisePermissions.kt`
-   con test puri.
-7. **Conflitti**: far restituire a `CatalogRemote.update` almeno il numero di righe aggiornate
-   (o usare `updated_at`) e mostrare l'avviso quando la modifica non viene applicata.
-8. **QA e release 1.6.0**: test su due account (normale + admin), account cancellato, backup e
-   ripristino, app offline, APK sopra la 1.5.2. Aggiornare README/INSTALLA e portare
-   `versionCode` a 11.
+1. **Applicare al progetto Supabase** le migrazioni non ancora presenti:
+   `20261104130000_tombstones.sql` e `20261104140000_image_editors_realtime.sql`
+   (dashboard → SQL Editor, oppure `supabase db push`).
+2. **Provare sul telefono** l'APK 1.6.0 sopra la versione installata, senza disinstallare:
+   consenso, sync iniziale, nessun duplicato, Realtime da un secondo dispositivo, immagine
+   condivisa caricata e sostituita, revoca del permesso, logout.
+3. **Rigenerare l'APK** con `scripts/build-apk.sh` e verificare `versionCode 11` / `versionName 1.6.0`.
+4. **WorkManager** (facoltativo per la 1.6.0): `SyncWorker` con vincolo rete, backoff e periodico
+   12 h, riusando `CatalogSyncRunner.syncNow()`.
+5. **Eventuale UI admin** per eliminare un esercizio condiviso, se serve davvero.
 
 ## Regole da non perdere
 
-- Una sola immagine per esercizio, via `set_exercise_image()` con
-  `UPDATE … WHERE image_path IS NULL OR is_admin()`: la gara è risolta dal database.
-- Admin deciso dal server (`admin_emails` + email confermata), mai da un ruolo salvato nel client.
-- I campi personali non escono mai dal telefono: note di esecuzione, passo di carico, nome Hevy,
-  foto locali, allenamenti, schede, misure, backup.
-- Nessun seed SQL: il catalogo parte dal primo client che accede; il collegamento avviene per
-  `name_key`.
-- Il pull è a snapshot completo: `shortcut` nel codice, passare a un cursore keyset oltre ~2000
-  esercizi.
-- Senza `SUPABASE_*` in `local.properties`, `SupabaseProvider.create` restituisce `null` e
-  l'app si comporta come la 1.5.0.
+- Admin deciso dal server, mai da un ruolo salvato nel client.
+- Una sola immagine condivisa per esercizio; la sostituzione è riservata ad admin/editor.
+- I campi personali non escono mai dal telefono: note, passo di carico, nome Hevy, foto locali,
+  allenamenti, schede, misure, backup.
+- Nessun seed SQL: il catalogo parte dal primo client che accede; il collegamento avviene per nome.
+- Il pull è a snapshot completo (`shortcut`: passare a un cursore keyset oltre ~2000 esercizi).
+- Senza `SUPABASE_*` in `local.properties` l'app si comporta come la 1.5.0.
+- Un consenso vale solo per l'account che l'ha dato.
 
 ## Comandi
 
 ```bash
 cd ~/Progetti/GymLog
-scripts/test.sh        # 206 test JVM
+scripts/test.sh        # test JVM
 backend/test.sh        # migrazioni + regole SQL su Postgres Docker
 scripts/build-apk.sh   # APK firmato in dist/GymLog-<versione>.apk
 ```
 
 ## Rischi noti
 
-- `supabase-kt` 3.1.4 è la prima versione compatibile con Kotlin 2.1.0; le versioni 3.2+ chiedono
-  Kotlin più recente. Se un aggiornamento della libreria diventa necessario, va aggiornato Kotlin
-  e verificato tutto il progetto.
-- Il client reale non ha test automatici: la prima sincronizzazione va osservata sul telefono e
-  sul dashboard Supabase.
-- La publishable key è verificata via REST e dal login; se una futura versione di `supabase-kt`
-  la rifiutasse, si usa la anon key JWT legacy dal dashboard senza cambiare codice.
-- Il build completo richiede ~18 minuti.
+- `supabase-kt` 3.1.4 è la prima versione compatibile con Kotlin 2.1.0; versioni 3.2+ richiedono
+  Kotlin più recente e vanno verificate su tutto il progetto.
+- Il client reale non ha test automatici: prima sincronizzazione, Realtime e immagini vanno
+  osservati sul telefono.
+- Se Realtime non è attivo sul progetto Supabase, l'app continua a funzionare ma si riallinea solo
+  a login, avvio, salvataggio o **Sincronizza ora**.
+- Il build completo richiede diversi minuti.

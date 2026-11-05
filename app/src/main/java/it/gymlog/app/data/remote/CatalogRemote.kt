@@ -1,6 +1,8 @@
 package it.gymlog.app.data.remote
 
 import java.io.File
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * Una riga del catalogo condiviso: solo i campi che escono dal telefono.
@@ -27,12 +29,15 @@ sealed interface InsertResult {
 
 /** Porta verso Supabase. L'implementazione reale sta in `SupabaseCatalogRemote`. */
 interface CatalogRemote {
+    /** Emissione per ogni variazione remota del catalogo. */
+    fun changes(): Flow<Unit> = emptyFlow()
     /** Tutto il catalogo, cancellati compresi: poche centinaia di righe, una richiesta. */
     suspend fun pull(): List<RemoteExercise>
 
     suspend fun insert(exercise: RemoteExercise): InsertResult
 
-    suspend fun update(exercise: RemoteExercise)
+    /** false se RLS non ha aggiornato alcuna riga (conflitto o permesso mancante). */
+    suspend fun update(exercise: RemoteExercise): Boolean
 
     /** Carica il JPEG e restituisce la chiave nel bucket. */
     suspend fun uploadImage(file: File, remoteId: String): String

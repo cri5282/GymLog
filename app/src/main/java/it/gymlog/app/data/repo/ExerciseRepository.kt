@@ -50,6 +50,15 @@ class ExerciseRepository(
 
     fun observe(id: Long): Flow<ExerciseWithDetails?> = dao.observeWithDetails(id)
 
+    suspend fun countToShare(): Int = dao.localOnly().size
+
+    suspend fun queueSharedImage(exerciseId: Long, file: File) {
+        val old = dao.getWithDetails(exerciseId)?.exercise?.pendingImageFile
+        dao.queueSharedImage(exerciseId, file.path)
+        old?.let(photos::delete)
+        onSharedChange()
+    }
+
     /** Crea o aggiorna; lancia [DuplicateNameException] se il nome è già usato da un altro esercizio. */
     suspend fun save(draft: ExerciseDraft): Long {
         val id = db.withTransaction {
@@ -61,6 +70,12 @@ class ExerciseRepository(
                 dao.findByHevyName(h)?.let { if (it.id != draft.id) throw DuplicateHevyNameException(h, it.name) }
             }
             val existing = if (draft.id != 0L) dao.getWithDetails(draft.id)?.exercise else null
+            val secondary = draft.secondary.filter { it != draft.primary }
+            // Note, passo di carico e nome Hevy non fanno partire un invio: il server non li conosce.
+            val sharedChanged = existing != null &&
+                (existing.name != name || existing.primaryMuscle != draft.primary ||
+                    existing.lengthBias != draft.bias || existing.single != draft.single ||
+                    dao.secondaryFor(existing.id).toSet() != secondary.toSet())
             val exercise = Exercise(
                 id = draft.id,
                 name = name,
@@ -75,7 +90,7 @@ class ExerciseRepository(
                 // I campi del catalogo condiviso non si perdono modificando note o passo di carico.
                 remoteId = existing?.remoteId,
                 remoteCreatedBy = existing?.remoteCreatedBy,
-                dirty = existing?.remoteId != null,
+                dirty = existing?.remoteId != null && sharedChanged,
                 sharedImageKey = existing?.sharedImageKey,
                 pendingImageFile = existing?.pendingImageFile,
             )
@@ -84,7 +99,7 @@ class ExerciseRepository(
             } else {
                 dao.update(exercise)
                 draft.id
-            }.also { id -> dao.replaceSecondary(id, draft.secondary.filter { it != draft.primary }) }
+            }.also { id -> dao.replaceSecondary(id, secondary) }
         }
         onSharedChange()
         return id

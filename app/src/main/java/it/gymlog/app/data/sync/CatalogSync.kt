@@ -26,6 +26,7 @@ class CatalogSync(
     private val remote: CatalogRemote,
     private val uid: String,
     private val isAdmin: Boolean,
+    private val canManageImages: Boolean = isAdmin,
 ) {
     private val dao = db.exerciseDao()
 
@@ -77,7 +78,11 @@ class CatalogSync(
                 report.refused++
                 continue
             }
-            remote.update(toRemote(local, local.remoteId!!))
+            if (!remote.update(toRemote(local, local.remoteId!!))) {
+                dao.clearDirty(local.id)
+                report.refused++
+                continue
+            }
             dao.clearDirty(local.id)
             report.pushedUpdates++
         }
@@ -86,9 +91,9 @@ class CatalogSync(
     private suspend fun pushImages(report: Report) {
         for (local in dao.pendingImages()) {
             val remoteId = local.remoteId ?: continue
-            val key = local.sharedImageKey
-            if (key != null && !isAdmin) {
-                // Qualcuno l'ha impostata nel frattempo: la mia non serve.
+            if (!canManageImages) {
+                // Permesso revocato dopo aver scelto la foto: resta solo sul telefono.
+                local.pendingImageFile?.let { File(it).delete() }
                 dao.clearPendingImage(local.id)
                 report.imagesLost++
                 continue
@@ -101,9 +106,11 @@ class CatalogSync(
             val path = remote.uploadImage(file, remoteId)
             if (remote.setImage(remoteId, path)) {
                 dao.setSharedImage(local.id, path)
+                file.delete()
                 report.pushedImages++
             } else {
                 dao.clearPendingImage(local.id)
+                file.delete()
                 report.imagesLost++
             }
         }

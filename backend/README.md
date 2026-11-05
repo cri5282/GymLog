@@ -8,6 +8,7 @@ offline-first: questo backend serve solo a scambiare esercizi, immagini e profil
 ```
 supabase/migrations/20261104120000_catalog.sql      schema, RLS, funzioni, bucket
 supabase/migrations/20261104130000_tombstones.sql   tombstone leggibili da tutti gli utenti
+supabase/migrations/20261104140000_image_editors_realtime.sql permessi immagini e realtime
 supabase/tests/00_stub.sql                       stub di auth/storage (solo per i test locali)
 supabase/tests/10_catalog.sql                    verifiche delle regole
 test.sh                                          esegue tutto su un Postgres usa-e-getta
@@ -19,9 +20,9 @@ test.sh                                          esegue tutto su un Postgres usa
   Non c'è una tabella `profiles` né un ruolo salvato alla registrazione: aggiungere un'email
   rende admin dal sync successivo, senza riregistrarsi.
 - **Campi condivisi** (nome, muscoli, `lengthBias`, `single`): li modifica il creatore o un admin.
-- **Immagine**: una per esercizio. Chiunque può impostarla **se manca**; solo un admin la
-  sostituisce o la rimuove. È un `UPDATE … WHERE image_path IS NULL OR is_admin()`: due caricamenti
-  simultanei producono un solo vincitore, il secondo riceve `false`.
+- **Immagine**: una predefinita sincronizzata per esercizio. Admin e utenti autorizzati possono
+  impostarla, sostituirla o rimuoverla. L'admin assegna/revoca il permesso dalla schermata Account.
+- Le modifiche al catalogo arrivano ai client autenticati tramite Supabase Realtime.
 - **Mai sul server**: note di esecuzione, passo di carico, `hevyName`, storico, schede, misure,
   foto personali.
 - Nessun `DELETE` dal client: solo soft delete da funzione admin.

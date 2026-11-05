@@ -39,6 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,7 +87,7 @@ import java.time.LocalDate
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val vm = appViewModel { SettingsViewModel(it.settings, it.hevyImporter, it.backup, it.csv) }
-    val account = appViewModel { AccountViewModel(it.auth, it.catalogSync) }
+    val account = appViewModel { AccountViewModel(it.auth, it.catalogSync, it.settings, it.exercises) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     val importState by vm.import.collectAsStateWithLifecycle()
     val backupMessage by vm.backupMessage.collectAsStateWithLifecycle()
@@ -378,9 +379,19 @@ private fun NumberSetting(
 private fun AccountSection(vm: AccountViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val sync by vm.syncState.collectAsStateWithLifecycle()
+    val consent by vm.catalogConsent.collectAsStateWithLifecycle()
+    val shareCount by vm.shareCount.collectAsStateWithLifecycle()
+    val imageEditors by vm.imageEditors.collectAsStateWithLifecycle()
+    val imageEditorMessage by vm.imageEditorMessage.collectAsStateWithLifecycle()
     val c = Gym.colors
     val context = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmShare by remember { mutableStateOf(false) }
+    var editorEmail by remember { mutableStateOf("") }
+    LaunchedEffect(state, consent) {
+        if (state is AuthState.SignedIn) vm.refreshPermissions()
+        if (state is AuthState.SignedIn && !consent) vm.refreshShareCount()
+    }
 
     SectionLabel("Account e catalogo condiviso")
     GymCard {
@@ -410,17 +421,48 @@ private fun AccountSection(vm: AccountViewModel) {
                 Text(s.name ?: s.email, color = c.text)
                 if (s.name != null) Text(s.email, color = c.textSecondary)
                 if (s.isAdmin) AccentPill("Admin", modifier = Modifier.padding(top = 8.dp))
+                else if (s.canManageImages) AccentPill("Editor immagini", modifier = Modifier.padding(top = 8.dp))
+                if (s.isAdmin) {
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp), color = c.border)
+                    Text("Permessi immagini", color = c.text)
+                    Text("Gli utenti autorizzati possono caricare e sostituire l'immagine predefinita degli esercizi.", color = c.textSecondary)
+                    OutlinedTextField(
+                        value = editorEmail,
+                        onValueChange = { editorEmail = it },
+                        label = { Text("Email account GymLog") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                    PrimaryButton(
+                        "Autorizza",
+                        onClick = { vm.grantImageEditor(editorEmail); editorEmail = "" },
+                        enabled = editorEmail.contains('@'),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    imageEditors.forEach { email ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(email, color = c.textSecondary, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { vm.revokeImageEditor(email) }) { Text("Revoca", color = c.error) }
+                        }
+                    }
+                    imageEditorMessage?.let { Text(it, color = c.textSecondary) }
+                }
                 Text(
-                    "Note, allenamenti, schede e foto restano su questo telefono.",
+                    "Note, allenamenti, schede e foto personali restano su questo telefono.",
                     color = c.textSecondary,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                if (!consent) {
+                    Text("Al primo accesso verranno condivisi $shareCount esercizi completi: nome, muscoli e tipo. Le note e le foto personali restano sul telefono.", color = c.textSecondary, modifier = Modifier.padding(top = 8.dp))
+                    PrimaryButton("Rivedi e consenti", onClick = { confirmShare = true }, modifier = Modifier.padding(top = 8.dp))
+                } else {
                 val (syncText, syncColor) = when (val st = sync) {
                     SyncStatus.Idle -> "Catalogo non ancora sincronizzato" to c.textSecondary
                     SyncStatus.Running -> "Sincronizzazione in corso…" to c.textSecondary
                     is SyncStatus.Done ->
                         ("Sincronizzato alle ${formatTime(st.at)}: ${st.sent} inviati, ${st.added} nuovi" +
-                            if (st.refused > 0) " · ${st.refused} non modificabili" else "") to c.textSecondary
+                            (if (st.refused > 0) " · ${st.refused} modifiche non applicate dal server" else "") +
+                            (if (st.imagesLost > 0) " · ${st.imagesLost} immagini non pubblicate perché già presenti" else "")) to c.textSecondary
                     is SyncStatus.Failed -> "Sincronizzazione non riuscita: ${st.message}" to c.error
                 }
                 Text(syncText, color = syncColor, modifier = Modifier.padding(top = 8.dp))
@@ -432,6 +474,7 @@ private fun AccountSection(vm: AccountViewModel) {
                     TextButton(onClick = { confirmDelete = true }) {
                         Text("Elimina account", color = c.error)
                     }
+                }
                 }
             }
             is AuthState.Error -> {
@@ -453,6 +496,16 @@ private fun AccountSection(vm: AccountViewModel) {
             confirmLabel = "Elimina",
             onConfirm = { confirmDelete = false; vm.deleteAccount() },
             onDismiss = { confirmDelete = false },
+        )
+    }
+
+    if (confirmShare) {
+        ConfirmDialog(
+            title = "Condividere il catalogo?",
+            message = "Invierai $shareCount esercizi completi (nome, muscoli e tipo) al catalogo comune, visibile agli utenti GymLog. Le note, gli allenamenti, le schede e le foto locali non verranno inviati.",
+            confirmLabel = "Condividi",
+            onConfirm = { confirmShare = false; vm.grantCatalogConsent() },
+            onDismiss = { confirmShare = false },
         )
     }
 }

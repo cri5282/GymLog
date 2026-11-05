@@ -50,6 +50,7 @@ import it.gymlog.app.data.db.ExerciseWithDetails
 import it.gymlog.app.data.db.RoutineExercise
 import it.gymlog.app.ui.common.ConfirmDialog
 import it.gymlog.app.ui.common.PhotoImage
+import it.gymlog.app.ui.common.sharedImageUrl
 import it.gymlog.app.ui.common.TextInputDialog
 import it.gymlog.app.ui.common.appViewModel
 import it.gymlog.app.ui.common.weekdayLabel
@@ -74,9 +75,9 @@ fun RoutineExercise.targetLabel(): String {
 /** Miniatura dell'esercizio: prima foto o icona su fondo "raised". */
 @Composable
 fun ExerciseThumb(exercise: ExerciseWithDetails, size: Int = 56) {
-    val photo = exercise.sortedPhotos.firstOrNull()
+    val photo = sharedImageUrl(exercise.exercise.sharedImageKey) ?: exercise.sortedPhotos.firstOrNull()?.filePath
     Box(Modifier.size(size.dp).clip(RoundedCornerShape(12.dp)).background(Gym.colors.raised), contentAlignment = Alignment.Center) {
-        if (photo != null) PhotoImage(photo.filePath, Modifier.fillMaxSize(), ContentScale.Crop)
+        if (photo != null) PhotoImage(photo, Modifier.fillMaxSize(), ContentScale.Crop)
         else Icon(Icons.Rounded.FitnessCenter, null, tint = Gym.colors.textSecondary)
     }
 }
